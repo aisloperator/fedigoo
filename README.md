@@ -1,10 +1,10 @@
 # FediGoo
 
+A Mastodon client for the Linux desktop, written in Rust with GTK 4.
+
 Created by [AI Sloperator](https://www.aisloperator.com/) with Claude Code.
 
 No license is given.
-
-A Mastodon client for the Linux desktop, written in Rust with GTK 4.
 
 ## Building
 
