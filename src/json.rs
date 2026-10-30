@@ -1,6 +1,6 @@
 //! Minimal JSON value type, parser and serializer.
 //!
-//! MastoGoo deliberately avoids serde to keep the dependency tree small; the
+//! FediGoo deliberately avoids serde to keep the dependency tree small; the
 //! Mastodon API only needs straightforward tree access.
 
 use std::fmt::{self, Write as _};

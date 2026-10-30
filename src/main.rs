@@ -1,4 +1,4 @@
-//! MastoGoo — a GTK 4 Mastodon client for the Linux desktop.
+//! FediGoo — a GTK 4 Mastodon client for the Linux desktop.
 
 // Callback-heavy GTK code reads better with inline closure types.
 #![allow(clippy::type_complexity)]
@@ -15,11 +15,11 @@ use gtk::{glib, prelude::*};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const APP_ID: &str = "com.aisloperator.MastoGoo";
+const APP_ID: &str = "com.aisloperator.FediGoo";
 
 fn usage() {
     println!(
-        "Usage: mastogoo [--x11 | --wayland]\n\n  \
+        "Usage: fedigoo [--x11 | --wayland]\n\n  \
          --x11       use the X11 backend\n  \
          --wayland   use the Wayland backend\n\n\
          Without an option GTK picks the backend (GDK_BACKEND is honoured).\n\

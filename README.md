@@ -1,4 +1,4 @@
-# MastoGoo
+# FediGoo
 
 Created by [AI Sloperator](https://www.aisloperator.com/) with Claude Code.
 
@@ -15,7 +15,7 @@ System packages (Debian/Ubuntu names):
 Then, with a stable Rust toolchain from rustup:
 
     cargo build --release
-    ./target/release/mastogoo
+    ./target/release/fedigoo
 
 The only crate dependencies are the GTK bindings (`gtk4`) and the libsoup
 bindings (`soup3`) plus their own dependencies. JSON handling and the HTML
@@ -23,17 +23,17 @@ conversion are built in. HTTPS uses libsoup and glib-networking.
 
 ## Running
 
-    mastogoo            # GTK picks the backend (honours GDK_BACKEND)
-    mastogoo --x11      # force X11
-    mastogoo --wayland  # force Wayland
+    fedigoo            # GTK picks the backend (honours GDK_BACKEND)
+    fedigoo --x11      # force X11
+    fedigoo --wayland  # force Wayland
 
-Log in through the welcome screen. MastoGoo opens your instance's
+Log in through the welcome screen. FediGoo opens your instance's
 authorisation page in the browser; paste the code it shows back into
-MastoGoo.
+FediGoo.
 
 All local data (accounts, access tokens, OAuth client registrations,
-preferences) is in `$XDG_CONFIG_HOME/mastogoo/config.json`, normally
-`~/.config/mastogoo/config.json`. The file is created with owner-only
+preferences) is in `$XDG_CONFIG_HOME/fedigoo/config.json`, normally
+`~/.config/fedigoo/config.json`. The file is created with owner-only
 permissions.
 
 ## Features

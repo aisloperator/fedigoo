@@ -121,7 +121,7 @@ pub fn open(app: &Rc<App>) {
                     Ok(r) => {
                         let url = authorize_url(&r);
                         info.set_markup(&format!(
-                            "A browser window has been opened on <b>{}</b>. Log in there, authorise MastoGoo, then paste the code you are shown below.\n\nIf no browser opened, visit:",
+                            "A browser window has been opened on <b>{}</b>. Log in there, authorise FediGoo, then paste the code you are shown below.\n\nIf no browser opened, visit:",
                             glib::markup_escape_text(&host)
                         ));
                         url_label.set_text(&url);

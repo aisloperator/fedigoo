@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-MastoGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
+FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 
 ## Ground rules
 
@@ -11,7 +11,7 @@ MastoGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland)
 - **Don't install system software.** If a system package seems to be missing, tell the
   user which package (Debian names) and let them install it. Current build needs:
   `pkgconf libgtk-4-dev libsoup-3.0-dev`. Rustup components are fine.
-- **All local data goes in `$XDG_CONFIG_HOME/mastogoo/`** (`config::dir()`, via
+- **All local data goes in `$XDG_CONFIG_HOME/fedigoo/`** (`config::dir()`, via
   `glib::user_config_dir()`). `config.json` holds access tokens: it's written atomically
   with mode 0600.
 - GTK feature level is `v4_12`; Debian 13 ships GTK 4.18, so newer APIs are available
@@ -62,7 +62,7 @@ MastoGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland)
 Run on GTK's Broadway backend with a throwaway config dir (never the user's real one):
 
     gtk4-broadwayd :7 &
-    XDG_CONFIG_HOME=<scratch>/cfg GDK_BACKEND=broadway BROADWAY_DISPLAY=:7 ./target/debug/mastogoo
+    XDG_CONFIG_HOME=<scratch>/cfg GDK_BACKEND=broadway BROADWAY_DISPLAY=:7 ./target/debug/fedigoo
 
 To get screenshots, add a temporary hook that renders the window with
 `gtk::WidgetPaintable` → `Snapshot` → `renderer().render_texture()` → `save_to_png`.
@@ -71,7 +71,7 @@ Clean stderr (no Gtk-WARNING/CRITICAL) is part of "works".
 
 ## Git
 
-- Branch `main`; remote `origin` is `git@github.com:aisloperator/mastogoo.git` (SSH,
+- Branch `main`; remote `origin` is `git@github.com:aisloperator/fedigoo.git` (SSH,
   because HTTPS has no credentials in this environment).
 - Commit or push only when asked.
 - README must keep the AI Sloperator credit line and "No license is given." at the top.

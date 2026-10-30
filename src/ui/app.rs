@@ -123,7 +123,7 @@ impl App {
 
         let window = gtk::ApplicationWindow::builder()
             .application(gtk_app)
-            .title("MastoGoo")
+            .title("FediGoo")
             .default_width(1000)
             .default_height(820)
             .icon_name("internet-chat")
@@ -141,7 +141,7 @@ impl App {
         header.pack_start(&compose_btn);
         header.pack_start(&refresh_btn);
 
-        let title = gtk::Label::new(Some("MastoGoo"));
+        let title = gtk::Label::new(Some("FediGoo"));
         title.add_css_class("title");
         let subtitle = gtk::Label::new(None);
         subtitle.add_css_class("subtitle");
@@ -366,7 +366,7 @@ impl App {
         b.set_valign(gtk::Align::Center);
         b.set_halign(gtk::Align::Center);
         let t = gtk::Label::new(None);
-        t.set_markup("<span size='xx-large' weight='bold'>Welcome to MastoGoo</span>");
+        t.set_markup("<span size='xx-large' weight='bold'>Welcome to FediGoo</span>");
         b.append(&t);
         let l = gtk::Label::new(Some(
             "A Mastodon client for the Linux desktop.\nLog in to your instance to get started.",
@@ -382,7 +382,7 @@ impl App {
         btn.connect_clicked(move |_| login::open(&a));
         b.append(&btn);
         self.reset_nav();
-        self.push("MastoGoo", b, None, None);
+        self.push("FediGoo", b, None, None);
     }
 
     pub fn add_account(self: &Rc<Self>, account: crate::config::Account) {
@@ -419,7 +419,7 @@ impl App {
         self.compose_btn.set_sensitive(true);
         self.refresh_btn.set_sensitive(true);
         self.window
-            .set_title(Some(&format!("MastoGoo — {}", acc.full_acct())));
+            .set_title(Some(&format!("FediGoo — {}", acc.full_acct())));
         self.rebuild_account_menu();
         self.show_root(Root::Home);
 
@@ -515,7 +515,7 @@ impl App {
         if let Some(ws) = self.stream.borrow_mut().take() {
             ws.close(1000, None);
         }
-        self.window.set_title(Some("MastoGoo"));
+        self.window.set_title(Some("FediGoo"));
         match next {
             Some(i) => self.activate_account(i),
             None => {
@@ -625,10 +625,10 @@ impl App {
             }),
         );
         item(
-            "About MastoGoo",
+            "About FediGoo",
             Box::new(|a| {
                 gtk::AboutDialog::builder()
-                    .program_name("MastoGoo")
+                    .program_name("FediGoo")
                     .version(env!("CARGO_PKG_VERSION"))
                     .comments("A Mastodon client for the Linux desktop, built with GTK 4.")
                     .logo_icon_name("internet-chat")
@@ -817,7 +817,7 @@ impl App {
             let ws = match res {
                 Ok(ws) => ws,
                 Err(e) => {
-                    eprintln!("mastogoo: streaming unavailable: {e}");
+                    eprintln!("fedigoo: streaming unavailable: {e}");
                     a.reconnect_later(base, generation);
                     return;
                 }

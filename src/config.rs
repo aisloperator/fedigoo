@@ -1,5 +1,5 @@
-//! Persistent local data, kept in `$XDG_CONFIG_HOME/mastogoo/` (normally
-//! `~/.config/mastogoo/`).
+//! Persistent local data, kept in `$XDG_CONFIG_HOME/fedigoo/` (normally
+//! `~/.config/fedigoo/`).
 
 use crate::json::{Value, obj};
 use gtk::glib;
@@ -10,7 +10,7 @@ use std::path::PathBuf;
 const CONFIG_FILE: &str = "config.json";
 
 pub fn dir() -> PathBuf {
-    glib::user_config_dir().join("mastogoo")
+    glib::user_config_dir().join("fedigoo")
 }
 
 /// A logged-in user on some instance.
@@ -31,7 +31,7 @@ impl Account {
     }
 }
 
-/// OAuth client credentials obtained by registering MastoGoo on an instance.
+/// OAuth client credentials obtained by registering FediGoo on an instance.
 #[derive(Clone, Debug, Default)]
 pub struct AppReg {
     pub instance: String,
@@ -73,7 +73,7 @@ impl Config {
         let v = match Value::parse(&text) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("mastogoo: ignoring unreadable {}: {e}", path.display());
+                eprintln!("fedigoo: ignoring unreadable {}: {e}", path.display());
                 return Config::default();
             }
         };
@@ -118,7 +118,7 @@ impl Config {
 
     pub fn save(&self) {
         if let Err(e) = self.try_save() {
-            eprintln!("mastogoo: could not save configuration: {e}");
+            eprintln!("fedigoo: could not save configuration: {e}");
         }
     }
 

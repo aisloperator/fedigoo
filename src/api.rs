@@ -9,13 +9,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub const CLIENT_NAME: &str = "MastoGoo";
+pub const CLIENT_NAME: &str = "FediGoo";
 pub const REDIRECT_URI: &str = "urn:ietf:wg:oauth:2.0:oob";
 pub const SCOPES: &str = "read write follow push";
 
 thread_local! {
     static SESSION: soup::Session = soup::Session::builder()
-        .user_agent(concat!("MastoGoo/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("FediGoo/", env!("CARGO_PKG_VERSION")))
         .timeout(60)
         .max_conns_per_host(6)
         .build();
