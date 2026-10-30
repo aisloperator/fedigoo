@@ -1,0 +1,224 @@
+/* MastoGoo styles; colours come from the current GTK theme. */
+
+.timeline-column {
+  min-width: 380px;
+}
+
+list.timeline {
+  background: transparent;
+}
+
+list.timeline > row {
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+  padding: 0;
+}
+
+.status {
+  padding: 10px 12px;
+}
+
+.status.focused {
+  background: alpha(@theme_selected_bg_color, 0.08);
+  border-left: 3px solid @theme_selected_bg_color;
+}
+
+.status.nested {
+  border-left: 2px solid alpha(currentColor, 0.15);
+}
+
+.status.indent1 { padding-left: 28px; }
+.status.indent2 { padding-left: 44px; }
+.status.indent3 { padding-left: 60px; }
+.status.indent4 { padding-left: 76px; }
+.status.indent5 { padding-left: 92px; }
+
+.status .content {
+  font-size: 1.02em;
+}
+
+.boost-line,
+.notification-line {
+  font-size: 0.92em;
+  margin-left: 20px;
+}
+
+.boost-line {
+  margin-bottom: 2px;
+}
+
+.link-button {
+  padding: 0 4px;
+  min-height: 0;
+}
+
+.avatar {
+  border-radius: 8px;
+}
+
+.avatar-button {
+  padding: 0;
+  border-radius: 8px;
+}
+
+button.time {
+  padding: 0 4px;
+  min-height: 0;
+  font-size: 0.9em;
+  color: alpha(currentColor, 0.6);
+}
+
+.caption {
+  font-size: 0.88em;
+}
+
+.heading {
+  font-weight: bold;
+}
+
+.section {
+  margin: 14px 12px 4px 12px;
+}
+
+.cw {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: alpha(@warning_color, 0.12);
+}
+
+.actions button.action {
+  padding: 2px 8px;
+  min-height: 24px;
+}
+
+.actions button.active-boost {
+  color: #2e9d58;
+}
+
+.actions button.active-fav {
+  color: #d99a00;
+}
+
+.actions button.active-bookmark {
+  color: #3584e4;
+}
+
+.media-grid {
+  margin-top: 4px;
+}
+
+.media-button {
+  padding: 0;
+  border-radius: 8px;
+}
+
+.media-thumb {
+  border-radius: 8px;
+}
+
+.media-badge {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.sensitive-cover {
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+button.card {
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid alpha(currentColor, 0.15);
+  background: alpha(currentColor, 0.03);
+}
+
+button.card > box {
+  padding: 0 10px 0 0;
+}
+
+.card-image {
+  border-radius: 8px 0 0 8px;
+}
+
+.poll {
+  padding: 6px 0;
+}
+
+.poll levelbar block.filled {
+  background: @theme_selected_bg_color;
+}
+
+.page-header {
+  padding: 12px;
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+.profile-header .banner {
+  border-radius: 8px;
+}
+
+.fields {
+  padding: 6px 0;
+}
+
+.verified {
+  color: #2e9d58;
+}
+
+.tag-badge {
+  font-size: 0.8em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: alpha(currentColor, 0.1);
+}
+
+.account-row {
+  padding: 8px 12px;
+}
+
+.badge {
+  background: @theme_selected_bg_color;
+  color: @theme_selected_fg_color;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.toast {
+  background: rgba(30, 30, 30, 0.92);
+  color: white;
+  border-radius: 999px;
+  padding: 8px 18px;
+}
+
+.compose-text {
+  font-size: 1.05em;
+}
+
+.attachment entry {
+  font-size: 0.9em;
+}
+
+.poll-editor {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid alpha(currentColor, 0.15);
+}
+
+.viewer {
+  background: black;
+}
+
+.accent {
+  color: @theme_selected_bg_color;
+}
+
+button.pill {
+  border-radius: 999px;
+  padding: 6px 18px;
+}
