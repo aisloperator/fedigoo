@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Favourite, set: filled star, slightly oversized and plump so it carries
+     as much visual weight as the other action icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#2e3436" d="M8.00 0.55L10.29 5.59L15.80 6.22L11.71 9.96L12.82 15.38L8.00 12.65L3.18 15.38L4.29 9.96L0.20 6.22L5.71 5.59Z"/>
+</svg>

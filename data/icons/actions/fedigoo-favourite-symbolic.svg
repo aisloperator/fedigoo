@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Favourite, not set: hollow star (same outline as the filled one); the
+     hole is offset inward by 1.5, the same line width as the hollow bookmark. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#2e3436" fill-rule="evenodd" d="M8.00 0.55L10.29 5.59L15.80 6.22L11.71 9.96L12.82 15.38L8.00 12.65L3.18 15.38L4.29 9.96L0.20 6.22L5.71 5.59ZM8.00 4.18L9.28 6.99L12.35 7.34L10.07 9.42L10.69 12.45L8.00 10.93L5.31 12.45L5.93 9.42L3.65 7.34L6.72 6.99Z"/>
+</svg>

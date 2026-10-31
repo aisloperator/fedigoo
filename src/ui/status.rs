@@ -61,49 +61,74 @@ fn name_markup(acc: &Account) -> String {
     )
 }
 
-fn action_button(icon: &str, tooltip: &str) -> (gtk::Button, gtk::Label) {
-    let b = gtk::Button::new();
+/// A post action: an icon plus an optional count.
+struct ActionButton {
+    button: gtk::Button,
+    icon: gtk::Image,
+    count: gtk::Label,
+}
+
+fn action_button(icon: &str, tooltip: &str) -> ActionButton {
+    let button = gtk::Button::new();
     let bx = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-    bx.append(&gtk::Image::from_icon_name(icon));
-    let l = gtk::Label::new(None);
-    bx.append(&l);
-    b.set_child(Some(&bx));
-    b.add_css_class("flat");
-    b.add_css_class("action");
-    b.set_tooltip_text(Some(tooltip));
-    (b, l)
+    let icon = gtk::Image::from_icon_name(icon);
+    bx.append(&icon);
+    let count = gtk::Label::new(None);
+    bx.append(&count);
+    button.set_child(Some(&bx));
+    button.add_css_class("flat");
+    button.add_css_class("action");
+    button.set_tooltip_text(Some(tooltip));
+    ActionButton {
+        button,
+        icon,
+        count,
+    }
+}
+
+impl ActionButton {
+    /// Shows the on/off state by shape (icon) as well as colour (CSS class).
+    fn set_state(&self, on: bool, icons: (&str, &str), class: &str, tooltips: (&str, &str)) {
+        self.icon
+            .set_icon_name(Some(if on { icons.1 } else { icons.0 }));
+        set_class(&self.button, class, on);
+        self.button
+            .set_tooltip_text(Some(if on { tooltips.1 } else { tooltips.0 }));
+    }
 }
 
 struct Actions {
     reply: gtk::Label,
-    boost: (gtk::Button, gtk::Label),
-    fav: (gtk::Button, gtk::Label),
-    bookmark: gtk::Button,
+    boost: ActionButton,
+    fav: ActionButton,
+    bookmark: ActionButton,
 }
 
 impl Actions {
     fn update(&self, s: &Status) {
         self.reply.set_text(&count_text(s.replies_count));
-        self.boost.1.set_text(&count_text(s.reblogs_count));
-        self.fav.1.set_text(&count_text(s.favourites_count));
-        set_class(&self.boost.0, "active-boost", s.reblogged);
-        set_class(&self.fav.0, "active-fav", s.favourited);
-        set_class(&self.bookmark, "active-bookmark", s.bookmarked);
-        self.boost
-            .0
-            .set_tooltip_text(Some(if s.reblogged { "Undo boost" } else { "Boost" }));
-        self.fav.0.set_tooltip_text(Some(if s.favourited {
-            "Unfavourite"
-        } else {
-            "Favourite"
-        }));
-        self.bookmark.set_tooltip_text(Some(if s.bookmarked {
-            "Remove bookmark"
-        } else {
-            "Bookmark"
-        }));
+        self.boost.count.set_text(&count_text(s.reblogs_count));
+        self.fav.count.set_text(&count_text(s.favourites_count));
+        self.boost.set_state(
+            s.reblogged,
+            ("fedigoo-boost-symbolic", "fedigoo-boosted-symbolic"),
+            "active-boost",
+            ("Boost", "Undo boost"),
+        );
+        self.fav.set_state(
+            s.favourited,
+            ("fedigoo-favourite-symbolic", "fedigoo-favourited-symbolic"),
+            "active-fav",
+            ("Favourite", "Unfavourite"),
+        );
+        self.bookmark.set_state(
+            s.bookmarked,
+            ("fedigoo-bookmark-symbolic", "fedigoo-bookmarked-symbolic"),
+            "active-bookmark",
+            ("Bookmark", "Remove bookmark"),
+        );
         let can_boost = matches!(s.visibility.as_str(), "public" | "unlisted");
-        self.boost.0.set_sensitive(can_boost || s.reblogged);
+        self.boost.button.set_sensitive(can_boost || s.reblogged);
     }
 }
 
@@ -344,20 +369,19 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
     // Action bar.
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 2);
     bar.add_css_class("actions");
-    let (reply_btn, reply_l) = action_button("mail-reply-sender-symbolic", "Reply");
-    let boost = action_button("media-playlist-repeat-symbolic", "Boost");
-    let fav = action_button("starred-symbolic", "Favourite");
-    let bookmark = gtk::Button::from_icon_name("user-bookmarks-symbolic");
-    bookmark.add_css_class("flat");
-    bookmark.add_css_class("action");
+    let reply = action_button("mail-reply-sender-symbolic", "Reply");
+    // Icons and tooltips of the toggles are set by Actions::update.
+    let boost = action_button("fedigoo-boost-symbolic", "");
+    let fav = action_button("fedigoo-favourite-symbolic", "");
+    let bookmark = action_button("fedigoo-bookmark-symbolic", "");
     let more = gtk::MenuButton::new();
     more.set_icon_name("view-more-symbolic");
     more.add_css_class("flat");
     more.set_tooltip_text(Some("More"));
-    bar.append(&reply_btn);
-    bar.append(&boost.0);
-    bar.append(&fav.0);
-    bar.append(&bookmark);
+    bar.append(&reply.button);
+    bar.append(&boost.button);
+    bar.append(&fav.button);
+    bar.append(&bookmark.button);
     let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
     bar.append(&spacer);
@@ -365,7 +389,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
     main.append(&bar);
 
     let actions = Rc::new(Actions {
-        reply: reply_l,
+        reply: reply.count,
         boost,
         fav,
         bookmark,
@@ -374,7 +398,8 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
 
     let a = app.clone();
     let st = state.clone();
-    reply_btn
+    reply
+        .button
         .connect_clicked(move |_| compose::open(&a, compose::Mode::Reply(st.borrow().clone())));
 
     let toggle =
@@ -418,10 +443,15 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
                 });
             });
         };
-    toggle(&actions.boost.0, |s| s.reblogged, "reblog", "unreblog");
-    toggle(&actions.fav.0, |s| s.favourited, "favourite", "unfavourite");
+    toggle(&actions.boost.button, |s| s.reblogged, "reblog", "unreblog");
     toggle(
-        &actions.bookmark,
+        &actions.fav.button,
+        |s| s.favourited,
+        "favourite",
+        "unfavourite",
+    );
+    toggle(
+        &actions.bookmark.button,
         |s| s.bookmarked,
         "bookmark",
         "unbookmark",

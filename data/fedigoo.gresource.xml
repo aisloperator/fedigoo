@@ -4,4 +4,12 @@
   <gresource prefix="/com/aisloperator/FediGoo/icons/scalable/apps">
     <file alias="com.aisloperator.FediGoo.svg">icons/com.aisloperator.FediGoo.svg</file>
   </gresource>
+  <gresource prefix="/com/aisloperator/FediGoo/icons/scalable/actions">
+    <file alias="fedigoo-boost-symbolic.svg">icons/actions/fedigoo-boost-symbolic.svg</file>
+    <file alias="fedigoo-boosted-symbolic.svg">icons/actions/fedigoo-boosted-symbolic.svg</file>
+    <file alias="fedigoo-favourite-symbolic.svg">icons/actions/fedigoo-favourite-symbolic.svg</file>
+    <file alias="fedigoo-favourited-symbolic.svg">icons/actions/fedigoo-favourited-symbolic.svg</file>
+    <file alias="fedigoo-bookmark-symbolic.svg">icons/actions/fedigoo-bookmark-symbolic.svg</file>
+    <file alias="fedigoo-bookmarked-symbolic.svg">icons/actions/fedigoo-bookmarked-symbolic.svg</file>
+  </gresource>
 </gresources>
