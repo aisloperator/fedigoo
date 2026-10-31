@@ -76,12 +76,14 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Don't indent widgets inside list rows with `set_margin_start`: it triggers
   "GtkBox adjusted size … must not decrease" warnings. Use CSS padding classes
   (see `.status.indentN`).
-- Media thumbnails use `ui/fit.rs` `FitRow`: whole image, scaled to the column width
-  and a cap of half the window height (`App` feeds it the surface height), centred,
-  never cropped. Don't put aspect-ratio content in a Grid/Box with height-for-width:
+- Media thumbnails use `ui/fit.rs` `FitLayout`: whole images, never cropped, with a
+  height cap of half the window height (`App` feeds it the surface height). The
+  arrangement (1 image; 2 side by side; first image at half width with 2 stacked or a
+  2×2 grid beside it; extras flowed below) is the pure function `fit::layout`, which
+  has unit tests: change and test it there. Don't put aspect-ratio content in a Grid/Box with height-for-width:
   GTK assumes height never grows with width and list rows get their *minimum* height,
   which gives "natural size must be >= min size" warnings or squashed images.
-  `FitRow` reports a constant size from its last allocated width and re-queues a
+  `FitLayout` reports a constant size from its last allocated width and re-queues a
   resize when that width changes.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.

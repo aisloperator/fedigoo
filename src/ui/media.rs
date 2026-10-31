@@ -1,7 +1,7 @@
 //! Media attachment thumbnails and the full-size image viewer.
 
 use super::app::App;
-use super::fit::FitRow;
+use super::fit::FitLayout;
 use crate::api;
 use crate::model::Media;
 use gtk::{glib, prelude::*};
@@ -9,15 +9,10 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 pub fn grid(app: &Rc<App>, media: &[Media], sensitive: bool) -> gtk::Widget {
-    let grid = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    let grid = FitLayout::new();
     grid.add_css_class("media-grid");
-    let cols = if media.len() == 1 { 1 } else { 2 };
-    // Rows share the height limit, so a 2×2 grid is no taller than one image.
-    let rows = media.len().div_ceil(cols);
-    let fraction = 1.0 / rows as f64;
-    let mut row = FitRow::new(cols, fraction);
     for (i, m) in media.iter().enumerate() {
-        // Whole image, scaled to fit: the FitRow sizes each button to its
+        // Whole image, scaled to fit: the FitLayout sizes each button to its
         // image's aspect ratio, so nothing is cropped.
         let pic = gtk::Picture::new();
         pic.set_content_fit(gtk::ContentFit::Contain);
@@ -56,14 +51,10 @@ pub fn grid(app: &Rc<App>, media: &[Media], sensitive: bool) -> gtk::Widget {
         let a = app.clone();
         let all = media.to_vec();
         btn.connect_clicked(move |_| open(&a, &all, i));
-        if i % cols == 0 {
-            row = FitRow::new(cols, fraction);
-            grid.append(&row);
-        }
-        row.append(&btn, m.aspect);
-        let (pic_w, row_w, btn_w) = (pic.downgrade(), row.downgrade(), btn.downgrade());
+        grid.append(&btn, m.aspect);
+        let (pic_w, grid_w, btn_w) = (pic.downgrade(), grid.downgrade(), btn.downgrade());
         api::with_texture(&m.preview_url, move |t| {
-            if let (Some(r), Some(b)) = (row_w.upgrade(), btn_w.upgrade()) {
+            if let (Some(r), Some(b)) = (grid_w.upgrade(), btn_w.upgrade()) {
                 r.set_aspect_if_unknown(&b, t.width() as f64 / t.height().max(1) as f64);
             }
             if let Some(p) = pic_w.upgrade() {
