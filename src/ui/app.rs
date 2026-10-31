@@ -126,7 +126,7 @@ impl App {
             .title("FediGoo")
             .default_width(1000)
             .default_height(820)
-            .icon_name("internet-chat")
+            .icon_name(crate::APP_ID)
             .build();
 
         let header = gtk::HeaderBar::new();
@@ -631,7 +631,12 @@ impl App {
                     .program_name("FediGoo")
                     .version(env!("CARGO_PKG_VERSION"))
                     .comments("A Mastodon client for the Linux desktop, built with GTK 4.")
-                    .logo_icon_name("internet-chat")
+                    .logo_icon_name(crate::APP_ID)
+                    .authors(["AI Sloperator"])
+                    .website("https://www.aisloperator.com/")
+                    .website_label("www.aisloperator.com")
+                    .license_type(gtk::License::Custom)
+                    .license("No license is given.")
                     .transient_for(&a.window)
                     .modal(true)
                     .build()

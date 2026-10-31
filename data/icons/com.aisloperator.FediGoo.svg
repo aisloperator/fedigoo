@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FediGoo app icon: a gooey speech bubble holding a small federated network. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="goo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <linearGradient id="puddle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#14b8a6" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Puddle the drips fall into. -->
+  <ellipse cx="66" cy="116" rx="44" ry="6" fill="url(#puddle)"/>
+
+  <!-- Bubble body with a tail at lower left and two drips. -->
+  <path fill="url(#goo)" d="
+    M64 12
+    C99 12 116 31 116 54
+    C116 75 102 89 82 93
+    L82 106
+    C82 113 72 113 72 106
+    L72 95
+    C69 95.4 66.5 95.5 64 95.5
+    C60.5 95.5 57 95.2 54 94.7
+    L54 100
+    C54 105.5 46 105.5 46 100
+    L46 93
+    C42 92 38.5 90.6 35 88.8
+    L23 106
+    C20.5 109.5 15.5 108 16.5 103.5
+    L21 83
+    C15.5 75.5 12 66 12 54
+    C12 31 29 12 64 12 Z"/>
+
+  <!-- Glossy highlight. -->
+  <ellipse cx="44" cy="30" rx="20" ry="9" fill="#ffffff" opacity="0.28" transform="rotate(-18 44 30)"/>
+
+  <!-- Federated network: three connected nodes. -->
+  <g stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" opacity="0.9">
+    <line x1="42" y1="58" x2="84" y2="44"/>
+    <line x1="84" y1="44" x2="72" y2="74"/>
+    <line x1="72" y1="74" x2="42" y2="58"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="42" cy="58" r="8.5"/>
+    <circle cx="84" cy="44" r="8.5"/>
+    <circle cx="72" cy="74" r="8.5"/>
+  </g>
+</svg>

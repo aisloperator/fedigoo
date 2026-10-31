@@ -40,6 +40,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.
 - `src/ui/status.rs`: post, notification and conversation widgets. `compose.rs`,
   `login.rs` (OAuth OOB code flow), `media.rs`, `prefs.rs`, `style.css`.
+- `data/`: app icon SVG and `fedigoo.gresource.xml`. `build.rs` runs
+  `glib-compile-resources` into `OUT_DIR`; `main.rs` embeds and registers the bundle, and
+  GtkApplication finds the icon under `/com/aisloperator/FediGoo/icons` via the app ID.
+  Use `crate::APP_ID` as the icon name.
 
 ## Conventions and gotchas
 

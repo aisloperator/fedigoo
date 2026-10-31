@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GtkApplication adds /<app-id-path>/icons to the icon theme automatically. -->
+<gresources>
+  <gresource prefix="/com/aisloperator/FediGoo/icons/scalable/apps">
+    <file alias="com.aisloperator.FediGoo.svg">icons/com.aisloperator.FediGoo.svg</file>
+  </gresource>
+</gresources>

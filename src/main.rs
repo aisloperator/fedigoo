@@ -15,7 +15,7 @@ use gtk::{glib, prelude::*};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const APP_ID: &str = "com.aisloperator.FediGoo";
+pub const APP_ID: &str = "com.aisloperator.FediGoo";
 
 fn usage() {
     println!(
@@ -47,6 +47,14 @@ fn main() -> glib::ExitCode {
         }
     }
 
+    // Embedded resources (the app icon); GtkApplication picks up the icons
+    // under /com/aisloperator/FediGoo/icons from the application ID.
+    let resource = gtk::gio::Resource::from_data(&glib::Bytes::from_static(include_bytes!(
+        concat!(env!("OUT_DIR"), "/fedigoo.gresource")
+    )))
+    .expect("embedded resources are valid");
+    gtk::gio::resources_register(&resource);
+
     let app = gtk::Application::builder().application_id(APP_ID).build();
     let state: Rc<RefCell<Option<Rc<ui::app::App>>>> = Rc::default();
     app.connect_activate(move |gtk_app| {
@@ -55,6 +63,7 @@ fn main() -> glib::ExitCode {
             a.window.present();
             return;
         }
+        gtk::Window::set_default_icon_name(APP_ID);
         let a = ui::app::App::new(gtk_app);
         a.window.present();
         *state.borrow_mut() = Some(a);
