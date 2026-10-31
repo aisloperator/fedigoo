@@ -630,13 +630,20 @@ impl App {
                 gtk::AboutDialog::builder()
                     .program_name("FediGoo")
                     .version(env!("CARGO_PKG_VERSION"))
-                    .comments("A Mastodon client for the Linux desktop, built with GTK 4.")
+                    // Credits and license are stated on the main page and also
+                    // in the standard fields (which add Credits/License tabs).
+                    .comments(
+                        "A Mastodon client for the Linux desktop.\n\n\
+                         Built with Rust and GTK 4.\n\n\
+                         Created by AI Sloperator with Claude Code.\n\n\
+                         No license is given.",
+                    )
                     .logo_icon_name(crate::APP_ID)
                     .authors(["AI Sloperator"])
-                    .website("https://www.aisloperator.com/")
-                    .website_label("www.aisloperator.com")
                     .license_type(gtk::License::Custom)
                     .license("No license is given.")
+                    .website("https://www.aisloperator.com/")
+                    .website_label("www.aisloperator.com")
                     .transient_for(&a.window)
                     .modal(true)
                     .build()
