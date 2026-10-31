@@ -807,7 +807,8 @@ impl Composer {
             .await;
             let Some(c) = w.upgrade() else { return };
             match res {
-                Ok(_) => {
+                Ok(v) => {
+                    c.app.status_posted(&v);
                     c.app.toast(if edit_id.is_some() {
                         "Post updated"
                     } else {

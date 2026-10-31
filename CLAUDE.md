@@ -63,6 +63,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   strongly is fine, since it lives for the whole process.
 - `App.generation` is bumped on account switch; async results compare against it and
   bail if stale.
+- After the user posts or edits, the composer calls `App::status_posted` with the
+  server's copy: open threads containing the parent (or the post) reload and scroll to
+  it (`pages::ThreadView`), and timelines update edited rows. Don't make views poll.
+- Scroll to a row with `pages::scroll_to_row`, not `grab_focus` (which doesn't scroll
+  here); it keeps tracking the row while heights above it are still settling.
 - CSS: use GTK theme colours such as `@theme_selected_bg_color`. libadwaita names like
   `@accent_bg_color` don't resolve here (no libadwaita).
 - Don't indent widgets inside list rows with `set_margin_start`: it triggers

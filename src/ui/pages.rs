@@ -10,7 +10,8 @@ use crate::json::{Value, obj};
 use crate::model::{Account, Relationship, Status, Tag};
 use crate::util;
 use gtk::{gio, glib, prelude::*};
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
 
 /// Wraps `child` in a centred, width-limited scrolling column.
@@ -287,6 +288,69 @@ fn show_search_results(app: &Rc<App>, results: &gtk::Box, v: &Value) {
 
 // ----- Threads -----
 
+/// Scrolls the enclosing scrolled window so `row` is at the top.  Rows
+/// around it may still be changing height (images loading, image rows doing
+/// their extra layout pass), so the target is tracked each frame until it has
+/// been stable for a moment, for at most ~3 s, or until the user scrolls.
+fn scroll_to_row(row: &gtk::ListBoxRow) {
+    const STABLE_FRAMES: u32 = 15;
+    const MAX_FRAMES: u32 = 180;
+    let frames = std::cell::Cell::new(0u32);
+    let stable = std::cell::Cell::new(0u32);
+    let last_set = std::cell::Cell::new(None::<f64>);
+    row.add_tick_callback(move |row, _| {
+        frames.set(frames.get() + 1);
+        let sw = row
+            .ancestor(gtk::ScrolledWindow::static_type())
+            .and_downcast::<gtk::ScrolledWindow>();
+        let target = sw.as_ref().and_then(|sw| {
+            let bounds = sw.child().and_then(|c| row.compute_bounds(&c))?;
+            (row.height() > 0).then(|| (bounds.y() as f64 - 8.0).max(0.0))
+        });
+        if let (Some(sw), Some(target)) = (sw, target) {
+            let adj = sw.vadjustment();
+            // Someone else moved it (the user scrolled): stop following.
+            if last_set
+                .get()
+                .is_some_and(|v| (adj.value() - v).abs() > 1.0)
+            {
+                return glib::ControlFlow::Break;
+            }
+            let reachable = target.min(adj.upper() - adj.page_size()).max(0.0);
+            if last_set.get().is_some_and(|v| (v - reachable).abs() < 0.5) {
+                stable.set(stable.get() + 1);
+            } else {
+                stable.set(0);
+            }
+            adj.set_value(reachable);
+            last_set.set(Some(adj.value()));
+        }
+        if stable.get() >= STABLE_FRAMES || frames.get() >= MAX_FRAMES {
+            glib::ControlFlow::Break
+        } else {
+            glib::ControlFlow::Continue
+        }
+    });
+}
+
+/// An open thread page, so it can be refreshed when the user replies in it.
+pub struct ThreadView {
+    /// Ids of every post currently shown.
+    ids: Rc<RefCell<HashSet<String>>>,
+    /// Reloads the thread, then scrolls to the given post if it's shown.
+    load: Rc<dyn Fn(Option<String>)>,
+}
+
+impl ThreadView {
+    pub fn shows(&self, id: &str) -> bool {
+        self.ids.borrow().contains(id)
+    }
+
+    pub fn reload_and_show(&self, id: &str) {
+        (self.load)(Some(id.to_string()));
+    }
+}
+
 pub fn open_thread(app: &Rc<App>, st: &Status) {
     let vb = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let page = column(&vb);
@@ -294,7 +358,9 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
     let id = st.id.clone();
     let initial = st.clone();
     let vb_w = vb.downgrade();
-    let load: Rc<dyn Fn()> = Rc::new(move || {
+    let ids: Rc<RefCell<HashSet<String>>> = Rc::default();
+    let ids2 = ids.clone();
+    let load: Rc<dyn Fn(Option<String>)> = Rc::new(move |scroll_to: Option<String>| {
         let Some(vb) = vb_w.upgrade() else { return };
         while let Some(c) = vb.first_child() {
             vb.remove(&c);
@@ -308,6 +374,7 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
         let id = id.clone();
         let a2 = a.clone();
         let lb_w = lb.downgrade();
+        let ids = ids2.clone();
         a.spawn(async move {
             let (main, ctx) = (
                 api.get(&format!("/api/v1/statuses/{id}"), &[]).await?,
@@ -336,6 +403,7 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
                 depth.insert(s.id.clone(), d);
                 items.push((s, d, false));
             }
+            *ids.borrow_mut() = items.iter().map(|(s, ..)| s.id.clone()).collect();
             let mut acts: Vec<Rc<dyn Fn()>> = Vec::new();
             let mut focus_row = None;
             for (s, d, focused) in items {
@@ -349,7 +417,12 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
                 let row = gtk::ListBoxRow::new();
                 row.set_child(Some(&w));
                 lb.append(&row);
-                if focused {
+                // Focus the requested post (e.g. a new reply), else the main one.
+                let wanted = match &scroll_to {
+                    Some(target) => *target == s.id,
+                    None => focused,
+                };
+                if wanted || (focused && focus_row.is_none()) {
                     focus_row = Some(row);
                 }
                 let a3 = a2.clone();
@@ -361,16 +434,23 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
                 }
             });
             if let Some(row) = focus_row {
-                // Scroll so the focused post is visible once laid out.
-                glib::idle_add_local_once(move || {
-                    row.grab_focus();
-                });
+                scroll_to_row(&row);
             }
             Ok(())
         });
     });
-    load();
-    app.push("Thread", page, None, Some(load));
+    load(None);
+    let view = Rc::new(ThreadView {
+        ids,
+        load: load.clone(),
+    });
+    app.register_thread(&view);
+    app.push(
+        "Thread",
+        page,
+        Some(view),
+        Some(Rc::new(move || load(None))),
+    );
 }
 
 // ----- Hashtags & lists -----

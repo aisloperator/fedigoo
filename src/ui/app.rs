@@ -104,6 +104,7 @@ pub struct App {
     toast: gtk::Revealer,
     toast_label: gtk::Label,
     live: RefCell<Vec<std::rc::Weak<Timeline>>>,
+    threads: RefCell<Vec<std::rc::Weak<pages::ThreadView>>>,
     stream: RefCell<Option<soup::WebsocketConnection>>,
     /// Bumped on every account switch so stale async work can bail out.
     generation: Cell<u32>,
@@ -239,6 +240,7 @@ impl App {
             toast,
             toast_label,
             live: RefCell::new(Vec::new()),
+            threads: RefCell::new(Vec::new()),
             stream: RefCell::new(None),
             generation: Cell::new(0),
         });
@@ -886,6 +888,35 @@ impl App {
                 let base = a.load_instance_info(&api).await;
                 a.connect_stream(base, generation);
             });
+        }
+    }
+
+    pub fn register_thread(&self, view: &Rc<pages::ThreadView>) {
+        let mut threads = self.threads.borrow_mut();
+        threads.retain(|w| w.strong_count() > 0);
+        threads.push(Rc::downgrade(view));
+    }
+
+    /// Called with the server's copy of a post the user just published or
+    /// edited, so open views show it without a manual refresh.
+    pub fn status_posted(&self, v: &Value) {
+        let st = Status::from_json(v);
+        // Edits: update the post wherever a timeline shows it.
+        for tl in self.live_timelines() {
+            tl.on_stream("status.update", v);
+        }
+        // Replies and edits: reload any open thread they belong to.
+        let threads: Vec<_> = self
+            .threads
+            .borrow()
+            .iter()
+            .filter_map(|w| w.upgrade())
+            .collect();
+        for t in threads {
+            let parent_shown = st.in_reply_to_id.as_deref().is_some_and(|p| t.shows(p));
+            if parent_shown || t.shows(&st.id) {
+                t.reload_and_show(&st.id);
+            }
         }
     }
 
