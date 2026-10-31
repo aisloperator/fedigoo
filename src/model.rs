@@ -1,6 +1,7 @@
 //! Typed views of the Mastodon API entities that the UI works with.
 
 use crate::json::Value;
+use std::collections::HashSet;
 
 fn s(v: &Value) -> String {
     v.str().to_string()
@@ -371,9 +372,86 @@ impl Tag {
     }
 }
 
+/// Accounts and domains the user has blocked or muted while the app is
+/// running, so views can drop their posts at once.  (The server filters what
+/// it sends after that, but not what's already loaded.)
+#[derive(Default)]
+pub struct Hidden {
+    accounts: HashSet<String>,
+    domains: HashSet<String>,
+}
+
+impl Hidden {
+    pub fn add_account(&mut self, id: &str) {
+        self.accounts.insert(id.to_string());
+    }
+
+    pub fn remove_account(&mut self, id: &str) {
+        self.accounts.remove(id);
+    }
+
+    pub fn add_domain(&mut self, domain: &str) {
+        self.domains.insert(domain.to_lowercase());
+    }
+
+    pub fn remove_domain(&mut self, domain: &str) {
+        self.domains.remove(&domain.to_lowercase());
+    }
+
+    /// Whether the account with `id` and `acct` (`user` or `user@domain`)
+    /// is hidden.  Domain blocks cover subdomains too, as on the server.
+    pub fn hides(&self, id: &str, acct: &str) -> bool {
+        if self.accounts.contains(id) {
+            return true;
+        }
+        let Some((_, domain)) = acct.split_once('@') else {
+            return false;
+        };
+        let domain = domain.to_lowercase();
+        self.domains.iter().any(|d| {
+            domain == *d
+                || domain
+                    .strip_suffix(d.as_str())
+                    .is_some_and(|rest| rest.ends_with('.'))
+        })
+    }
+
+    pub fn hides_any(&self, who: &[(String, String)]) -> bool {
+        who.iter().any(|(id, acct)| self.hides(id, acct))
+    }
+}
+
+/// The (id, acct) of every account a post involves: its author, and for a
+/// boost also the booster.
+pub fn status_accounts(st: &Status) -> Vec<(String, String)> {
+    let mut who = vec![(st.account.id.clone(), st.account.acct.clone())];
+    let shown = &st.shown().account;
+    if shown.id != st.account.id {
+        who.push((shown.id.clone(), shown.acct.clone()));
+    }
+    who
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_accounts_and_domains() {
+        let mut h = Hidden::default();
+        assert!(!h.hides("1", "alice"));
+        h.add_account("1");
+        assert!(h.hides("1", "alice"));
+        assert!(!h.hides("2", "bob@example.com"));
+        h.add_domain("Example.com");
+        assert!(h.hides("2", "bob@example.com"));
+        assert!(h.hides("3", "carol@social.EXAMPLE.com"));
+        assert!(!h.hides("4", "dave@notexample.com"));
+        assert!(!h.hides("5", "erin"));
+        h.remove_domain("example.com");
+        h.remove_account("1");
+        assert!(!h.hides("1", "alice") && !h.hides("2", "bob@example.com"));
+    }
 
     #[test]
     fn media_aspect() {

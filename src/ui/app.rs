@@ -105,6 +105,13 @@ pub struct App {
     toast_label: gtk::Label,
     live: RefCell<Vec<std::rc::Weak<Timeline>>>,
     threads: RefCell<Vec<std::rc::Weak<pages::ThreadView>>>,
+    /// Accounts and domains blocked or muted this session.
+    hidden: RefCell<model::Hidden>,
+    /// Every post widget built, with the (id, acct) of the accounts it
+    /// involves, so blocks and mutes can hide them wherever they are shown.
+    posts: RefCell<Vec<(glib::WeakRef<gtk::Widget>, Vec<(String, String)>)>>,
+    /// Size at which `posts` is next pruned of dead widgets.
+    posts_cap: Cell<usize>,
     stream: RefCell<Option<soup::WebsocketConnection>>,
     /// Bumped on every account switch so stale async work can bail out.
     generation: Cell<u32>,
@@ -241,6 +248,9 @@ impl App {
             toast_label,
             live: RefCell::new(Vec::new()),
             threads: RefCell::new(Vec::new()),
+            hidden: RefCell::default(),
+            posts: RefCell::new(Vec::new()),
+            posts_cap: Cell::new(256),
             stream: RefCell::new(None),
             generation: Cell::new(0),
         });
@@ -422,6 +432,7 @@ impl App {
         }
         *self.api.borrow_mut() = Api::new(&acc.instance, Some(&acc.token));
         *self.me.borrow_mut() = None;
+        *self.hidden.borrow_mut() = model::Hidden::default();
         self.unread.set(0);
         self.notif_badge.set_visible(false);
         self.sidebar.set_sensitive(true);
@@ -939,6 +950,33 @@ impl App {
         }
     }
 
+    /// Registers a post widget and the accounts it involves (see
+    /// `model::status_accounts`), hiding it at once if one is blocked or
+    /// muted.
+    pub fn track_post(&self, w: &gtk::Widget, who: Vec<(String, String)>) {
+        if self.hidden.borrow().hides_any(&who) {
+            set_post_hidden(w, true);
+        }
+        let mut posts = self.posts.borrow_mut();
+        if posts.len() >= self.posts_cap.get() {
+            posts.retain(|(w, _)| w.upgrade().is_some());
+            self.posts_cap.set((posts.len() * 2).max(256));
+        }
+        posts.push((w.downgrade(), who));
+    }
+
+    /// Updates the blocked/muted set (after the server has accepted the
+    /// change) and hides or re-shows posts in every open view to match.
+    pub fn change_hidden(&self, f: impl FnOnce(&mut model::Hidden)) {
+        f(&mut self.hidden.borrow_mut());
+        let hidden = self.hidden.borrow();
+        for (w, who) in self.posts.borrow().iter() {
+            if let Some(w) = w.upgrade() {
+                set_post_hidden(&w, hidden.hides_any(who));
+            }
+        }
+    }
+
     fn live_timelines(&self) -> Vec<Rc<Timeline>> {
         self.live
             .borrow()
@@ -975,6 +1013,26 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+/// Hides or shows a post: its whole list row if it's in one (so no empty
+/// row is left behind), else the widget itself until it's put in a row.
+fn set_post_hidden(w: &gtk::Widget, hide: bool) {
+    if let Some(row) = w.ancestor(gtk::ListBoxRow::static_type()) {
+        row.set_visible(!hide);
+        return;
+    }
+    w.set_visible(!hide);
+    if hide {
+        w.connect_notify_local(Some("parent"), |w, _| {
+            if !w.is_visible()
+                && let Some(row) = w.parent().and_downcast::<gtk::ListBoxRow>()
+            {
+                row.set_visible(false);
+                w.set_visible(true);
+            }
+        });
     }
 }
 

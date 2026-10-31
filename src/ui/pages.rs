@@ -866,8 +866,16 @@ fn fill_profile_actions(app: &Rc<App>, b: &gtk::Box, acc: &Account, rel: &Relati
                 let v = api
                     .post(&format!("/api/v1/accounts/{}/{path}", acc.id), body)
                     .await?;
+                let rel = Relationship::from_json(&v);
+                a.change_hidden(|h| {
+                    if rel.blocking || rel.muting {
+                        h.add_account(&acc.id);
+                    } else {
+                        h.remove_account(&acc.id);
+                    }
+                });
                 if let Some(b) = b.upgrade() {
-                    fill_profile_actions(&a, &b, &acc, &Relationship::from_json(&v));
+                    fill_profile_actions(&a, &b, &acc, &rel);
                 }
                 Ok(())
             });
@@ -995,20 +1003,11 @@ fn fill_profile_actions(app: &Rc<App>, b: &gtk::Box, acc: &Account, rel: &Relati
             Rc::new({
                 let blocking = rel.domain_blocking;
                 move || {
-                    let api = a.api();
-                    let a2 = a.clone();
-                    let domain = domain.clone();
-                    a.spawn(async move {
-                        let body = Body::Form(vec![("domain".into(), domain.clone())]);
-                        let method = if blocking { "DELETE" } else { "POST" };
-                        api.request(method, "/api/v1/domain_blocks", &[], body)
-                            .await?;
-                        a2.toast(&format!(
-                            "{} {domain}",
-                            if blocking { "Unblocked" } else { "Blocked" }
-                        ));
-                        Ok(())
-                    });
+                    if blocking {
+                        unblock_domain(&a, &domain);
+                    } else {
+                        confirm_domain_block(&a, &domain);
+                    }
                 }
             }),
         );
@@ -1069,13 +1068,63 @@ pub fn confirm_account_action(app: &Rc<App>, acc: &Account, verb: &'static str) 
             .post(&format!("/api/v1/accounts/{}/{verb}", acc.id), Value::Null)
             .await
         {
-            Ok(_) => a.toast(&format!(
-                "@{} {}",
-                acc.acct,
-                if verb == "mute" { "muted" } else { "blocked" }
-            )),
+            Ok(_) => {
+                a.change_hidden(|h| h.add_account(&acc.id));
+                a.toast(&format!(
+                    "@{} {}",
+                    acc.acct,
+                    if verb == "mute" { "muted" } else { "blocked" }
+                ))
+            }
             Err(e) => a.toast(&e),
         }
+    });
+}
+
+pub fn confirm_domain_block(app: &Rc<App>, domain: &str) {
+    let a = app.clone();
+    let domain = domain.to_string();
+    let dlg = gtk::AlertDialog::builder()
+        .message(format!("Block the entire domain {domain}?"))
+        .detail(
+            "You won't see posts or notifications from anyone on it, and your \
+             followers there will be removed.",
+        )
+        .buttons(["Cancel", "Block domain"])
+        .cancel_button(0)
+        .default_button(1)
+        .build();
+    let win = app.window.clone();
+    glib::spawn_future_local(async move {
+        if dlg.choose_future(Some(&win)).await != Ok(1) {
+            return;
+        }
+        let body = Body::Form(vec![("domain".into(), domain.clone())]);
+        match a
+            .api()
+            .request("POST", "/api/v1/domain_blocks", &[], body)
+            .await
+        {
+            Ok(_) => {
+                a.change_hidden(|h| h.add_domain(&domain));
+                a.toast(&format!("Blocked {domain}"));
+            }
+            Err(e) => a.toast(&e),
+        }
+    });
+}
+
+fn unblock_domain(app: &Rc<App>, domain: &str) {
+    let api = app.api();
+    let a = app.clone();
+    let domain = domain.to_string();
+    app.spawn(async move {
+        let body = Body::Form(vec![("domain".into(), domain.clone())]);
+        api.request("DELETE", "/api/v1/domain_blocks", &[], body)
+            .await?;
+        a.change_hidden(|h| h.remove_domain(&domain));
+        a.toast(&format!("Unblocked {domain}"));
+        Ok(())
     });
 }
 

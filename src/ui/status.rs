@@ -4,7 +4,7 @@ use super::{app::App, compose, media, pages};
 use crate::api;
 use crate::html;
 use crate::json::{Value, obj};
-use crate::model::{Account, Notification, Poll, Status};
+use crate::model::{self, Account, Notification, Poll, Status};
 use crate::util;
 use gtk::{glib, pango, prelude::*};
 use std::cell::RefCell;
@@ -458,7 +458,9 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
     );
 
     more.set_popover(Some(&more_menu(app, &state, &content, &outer)));
-    outer.upcast()
+    let outer = outer.upcast();
+    app.track_post(&outer, model::status_accounts(&status));
+    outer
 }
 
 fn more_menu(
@@ -676,6 +678,14 @@ fn more_menu(
             &format!("Block @{acct}"),
             Box::new(move || pages::confirm_account_action(&a, &acc, "block")),
         );
+        if let Some((_, domain)) = acct.split_once('@') {
+            let a = app.clone();
+            let domain = domain.to_string();
+            item(
+                &format!("Block domain {domain}"),
+                Box::new(move || pages::confirm_domain_block(&a, &domain)),
+            );
+        }
         let a = app.clone();
         let acc = s.account.clone();
         let sid = s.id.clone();
@@ -897,6 +907,16 @@ fn poll_toggle(
 }
 
 pub fn notification(app: &Rc<App>, n: Notification) -> gtk::Widget {
+    let mut who = vec![(n.account.id.clone(), n.account.acct.clone())];
+    if let Some(st) = &n.status {
+        who.extend(model::status_accounts(st));
+    }
+    let w = notification_widget(app, n);
+    app.track_post(&w, who);
+    w
+}
+
+fn notification_widget(app: &Rc<App>, n: Notification) -> gtk::Widget {
     let (icon, verb) = match n.kind.as_str() {
         "mention" => ("mail-replied-symbolic", "mentioned you"),
         "reblog" => ("media-playlist-repeat-symbolic", "boosted your post"),

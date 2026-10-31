@@ -66,6 +66,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - After the user posts or edits, the composer calls `App::status_posted` with the
   server's copy: open threads containing the parent (or the post) reload and scroll to
   it (`pages::ThreadView`), and timelines update edited rows. Don't make views poll.
+- Blocks and mutes hide posts at once: every post/notification widget registers itself
+  with `App::track_post` (accounts from `model::status_accounts`), and after the server
+  accepts a block, mute or domain block, call `App::change_hidden` to update
+  `model::Hidden`; matching list rows are hidden (not removed), in every view. New post
+  widgets must be built through `status::build`/`status::notification` to get this.
 - Scroll to a row with `pages::scroll_to_row`, not `grab_focus` (which doesn't scroll
   here); it keeps tracking the row while heights above it are still settling.
 - Light/dark follows the desktop via `ui/theme.rs` (XDG portal `color-scheme`, falling
