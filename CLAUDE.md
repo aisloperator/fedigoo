@@ -112,3 +112,17 @@ Clean stderr (no Gtk-WARNING/CRITICAL) is part of "works".
   because HTTPS has no credentials in this environment).
 - Commit or push only when asked.
 - README must keep the AI Sloperator credit line and "No license is given." at the top.
+
+## Before each release
+
+Update README's "Code Dependencies" section (keep its four subsections, the notes under
+each heading, and alphabetical bullet lists; crates as
+``* [`name`](https://crates.io/crates/name) `version` ``):
+
+- Direct crates: the version strings in `Cargo.toml`.
+- Indirect crates: `cargo tree -e normal,build --prefix none --format "{p}" | sort -u`,
+  minus `fedigoo` and the direct crates; list every resolved version of a crate.
+- Direct non-crate libraries: `objdump -p target/release/fedigoo | grep NEEDED`.
+- Indirect non-crate libraries: `ldd target/release/fedigoo` minus the direct ones (and
+  the vDSO/loader), plus the run-time-loaded modules already listed (TLS, dconf, image
+  loaders, GL/Vulkan drivers).
