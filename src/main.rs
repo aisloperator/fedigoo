@@ -6,6 +6,7 @@
 mod api;
 mod config;
 mod html;
+mod install;
 mod json;
 mod model;
 mod ui;
@@ -19,9 +20,12 @@ pub const APP_ID: &str = "com.aisloperator.FediGoo";
 
 fn usage() {
     println!(
-        "Usage: fedigoo [--x11 | --wayland]\n\n  \
+        "Usage: fedigoo [--x11 | --wayland | --install | --uninstall]\n\n  \
          --x11       use the X11 backend\n  \
-         --wayland   use the Wayland backend\n\n\
+         --wayland   use the Wayland backend\n  \
+         --install   install for this user: ~/.local/bin/fedigoo, plus a menu\n              \
+         entry and icon under ~/.local/share\n  \
+         --uninstall remove those files (accounts and settings are kept)\n\n\
          Without an option GTK picks the backend (GDK_BACKEND is honoured).\n\
          Data is stored in {}",
         config::dir().display()
@@ -37,6 +41,20 @@ fn main() -> glib::ExitCode {
             "-h" | "--help" => {
                 usage();
                 return glib::ExitCode::SUCCESS;
+            }
+            "--install" | "--uninstall" => {
+                let res = if arg == "--install" {
+                    install::install()
+                } else {
+                    install::uninstall()
+                };
+                return match res {
+                    Ok(()) => glib::ExitCode::SUCCESS,
+                    Err(e) => {
+                        eprintln!("fedigoo: {}: {e}", &arg[2..]);
+                        glib::ExitCode::FAILURE
+                    }
+                };
             }
             _ => None,
         };
@@ -54,6 +72,10 @@ fn main() -> glib::ExitCode {
     )))
     .expect("embedded resources are valid");
     gtk::gio::resources_register(&resource);
+
+    // The program name becomes the X11 WM_CLASS; matching the app ID lets
+    // desktops pair windows with the installed desktop entry.
+    glib::set_prgname(Some(APP_ID));
 
     let app = gtk::Application::builder().application_id(APP_ID).build();
     let state: Rc<RefCell<Option<Rc<ui::app::App>>>> = Rc::default();

@@ -44,6 +44,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   `glib-compile-resources` into `OUT_DIR`; `main.rs` embeds and registers the bundle, and
   GtkApplication finds the icon under `/com/aisloperator/FediGoo/icons` via the app ID.
   Use `crate::APP_ID` as the icon name.
+- `src/install.rs`: `--install`/`--uninstall` (per-user: `~/.local/bin`, plus the desktop
+  entry from `data/com.aisloperator.FediGoo.desktop.in` and the icon under
+  `glib::user_data_dir()`). `main.rs` sets the prgname to `APP_ID` so the X11 WM_CLASS
+  matches the desktop entry's `StartupWMClass`. Test it with a throwaway `HOME`, and
+  check the output with `desktop-file-validate`.
 
 ## Conventions and gotchas
 

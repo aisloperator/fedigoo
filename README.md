@@ -27,6 +27,16 @@ conversion are built in. HTTPS uses libsoup and glib-networking.
     fedigoo --x11      # force X11
     fedigoo --wayland  # force Wayland
 
+## Installing
+
+    ./target/release/fedigoo --install
+
+This copies the executable to `~/.local/bin/fedigoo`, and adds a menu entry
+(`~/.local/share/applications/com.aisloperator.FediGoo.desktop`) and an icon
+(under `~/.local/share/icons/hicolor/`), so FediGoo shows up in your
+application menu and dock. `fedigoo --uninstall` removes those files and
+leaves your accounts and settings alone.
+
 Log in through the welcome screen. FediGoo opens your instance's
 authorisation page in the browser; paste the code it shows back into
 FediGoo.

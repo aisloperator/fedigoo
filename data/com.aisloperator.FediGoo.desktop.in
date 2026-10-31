@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FediGoo
+GenericName=Mastodon Client
+Comment=A Mastodon client for the Linux desktop
+Exec=@EXEC@
+Icon=com.aisloperator.FediGoo
+Terminal=false
+Categories=Network;Chat;InstantMessaging;GTK;
+Keywords=Mastodon;Fediverse;Social;Toot;
+StartupNotify=true
+StartupWMClass=com.aisloperator.FediGoo
