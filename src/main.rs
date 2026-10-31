@@ -86,6 +86,7 @@ fn main() -> glib::ExitCode {
             return;
         }
         gtk::Window::set_default_icon_name(APP_ID);
+        ui::theme::follow_desktop();
         let a = ui::app::App::new(gtk_app);
         a.window.present();
         *state.borrow_mut() = Some(a);

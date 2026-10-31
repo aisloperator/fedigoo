@@ -7,4 +7,5 @@ mod media;
 mod pages;
 mod prefs;
 mod status;
+pub mod theme;
 mod timeline;
