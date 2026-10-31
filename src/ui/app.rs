@@ -425,6 +425,9 @@ impl App {
         self.unread.set(0);
         self.notif_badge.set_visible(false);
         self.sidebar.set_sensitive(true);
+        // Until this server says otherwise.
+        self.set_live_feed_enabled(Root::Local, true);
+        self.set_live_feed_enabled(Root::Federated, true);
         self.compose_btn.set_sensitive(true);
         self.refresh_btn.set_sensitive(true);
         self.window
@@ -480,10 +483,26 @@ impl App {
         if n > 0 {
             self.max_media.set(n as usize);
         }
+        // Servers may turn off the live feeds ("public", "authenticated" or
+        // "disabled"); a logged-in user can't see disabled ones.
+        let feeds = &conf["timelines_access"]["live_feeds"];
+        self.set_live_feed_enabled(Root::Local, feeds["local"].str() != "disabled");
+        self.set_live_feed_enabled(Root::Federated, feeds["remote"].str() != "disabled");
         conf["urls"]["streaming"]
             .nonempty_str()
             .map(str::to_string)
             .unwrap_or(fallback)
+    }
+
+    /// Greys out a live feed's sidebar row when the server has turned it off.
+    fn set_live_feed_enabled(&self, root: Root, enabled: bool) {
+        let Some(i) = ROOTS.iter().position(|(r, ..)| *r == root) else {
+            return;
+        };
+        if let Some(row) = self.sidebar.row_at_index(i as i32) {
+            row.set_sensitive(enabled);
+            row.set_tooltip_text((!enabled).then_some("This server has turned off this feed"));
+        }
     }
 
     pub fn log_out(self: &Rc<Self>) {
