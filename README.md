@@ -6,6 +6,8 @@ Created by [AI Sloperator](https://www.aisloperator.com/) with Claude Code.
 
 No license is given.
 
+<img src="screenshot.png" width="940" height="660" alt="FediGoo showing the Explore timeline: a sidebar of timelines on the left, and a post with four cat photos laid out beside each other.">
+
 ## Building
 
 System packages (Debian/Ubuntu names):
