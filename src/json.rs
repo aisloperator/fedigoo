@@ -63,6 +63,13 @@ impl Value {
         }
     }
 
+    pub fn f64(&self) -> f64 {
+        match self {
+            Value::Num(n) => *n,
+            _ => 0.0,
+        }
+    }
+
     pub fn bool(&self) -> bool {
         matches!(self, Value::Bool(true))
     }

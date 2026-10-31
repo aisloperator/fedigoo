@@ -95,6 +95,23 @@ pub struct Media {
     pub preview_url: String,
     pub remote_url: Option<String>,
     pub description: Option<String>,
+    /// Width / height from the server's metadata; 0 when not given.
+    pub aspect: f64,
+}
+
+/// Aspect ratio from attachment `meta`, preferring the preview's size.
+fn aspect(meta: &Value) -> f64 {
+    for key in ["small", "original"] {
+        let m = &meta[key];
+        let (w, h) = (m["width"].f64(), m["height"].f64());
+        if w > 0.0 && h > 0.0 {
+            return w / h;
+        }
+        if m["aspect"].f64() > 0.0 {
+            return m["aspect"].f64();
+        }
+    }
+    0.0
 }
 
 impl Media {
@@ -106,6 +123,7 @@ impl Media {
             preview_url: opt(&v["preview_url"]).unwrap_or_else(|| s(&v["url"])),
             remote_url: opt(&v["remote_url"]),
             description: opt(&v["description"]),
+            aspect: aspect(&v["meta"]),
         }
     }
 
@@ -350,5 +368,21 @@ impl Tag {
                 .map(|h| h["accounts"].i64())
                 .sum(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn media_aspect() {
+        let m = |meta: &str| {
+            let v = Value::parse(&format!(r#"{{"type":"image","meta":{meta}}}"#)).unwrap();
+            Media::from_json(&v).aspect
+        };
+        assert_eq!(m(r#"{"small":{"width":400,"height":200}}"#), 2.0);
+        assert_eq!(m(r#"{"original":{"aspect":0.5}}"#), 0.5);
+        assert_eq!(m("null"), 0.0);
     }
 }

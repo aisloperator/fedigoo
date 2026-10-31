@@ -68,6 +68,13 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Don't indent widgets inside list rows with `set_margin_start`: it triggers
   "GtkBox adjusted size … must not decrease" warnings. Use CSS padding classes
   (see `.status.indentN`).
+- Media thumbnails use `ui/fit.rs` `FitRow`: whole image, scaled to the column width
+  and a cap of half the window height (`App` feeds it the surface height), centred,
+  never cropped. Don't put aspect-ratio content in a Grid/Box with height-for-width:
+  GTK assumes height never grows with width and list rows get their *minimum* height,
+  which gives "natural size must be >= min size" warnings or squashed images.
+  `FitRow` reports a constant size from its last allocated width and re-queues a
+  resize when that width changes.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

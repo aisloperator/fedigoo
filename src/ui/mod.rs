@@ -1,6 +1,7 @@
 mod account;
 pub mod app;
 mod compose;
+mod fit;
 mod login;
 mod media;
 mod pages;

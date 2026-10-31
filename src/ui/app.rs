@@ -1,6 +1,6 @@
 //! The main window, navigation, account handling and streaming.
 
-use super::{compose, login, pages, prefs, timeline::Timeline};
+use super::{compose, fit, login, pages, prefs, timeline::Timeline};
 use crate::api::{self, Api};
 use crate::config::Config;
 use crate::json::Value;
@@ -249,6 +249,13 @@ impl App {
     }
 
     fn connect_signals(self: &Rc<Self>, gtk_app: &gtk::Application) {
+        // Media thumbnails are limited to about half the window height.
+        self.window.connect_realize(|w| {
+            if let Some(surface) = w.surface() {
+                fit::set_window_height(surface.height());
+                surface.connect_height_notify(|s| fit::set_window_height(s.height()));
+            }
+        });
         let a = self.clone();
         self.back_btn.connect_clicked(move |_| a.pop());
         let a = self.clone();
