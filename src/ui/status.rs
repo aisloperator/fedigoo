@@ -739,18 +739,22 @@ fn card_widget(app: &Rc<App>, card: &crate::model::Card) -> gtk::Widget {
 
 fn poll_widget(app: &Rc<App>, poll: Poll) -> gtk::Widget {
     let holder = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    fill_poll(app, &holder, poll);
+    fill_poll(app, &holder, poll, false);
     holder.upcast()
 }
 
-fn fill_poll(app: &Rc<App>, holder: &gtk::Box, poll: Poll) {
+/// Shows `poll` in `holder`: as choices to vote on, or as results once the
+/// user has voted, the poll has closed, or `peek` asks for the results
+/// without voting.
+fn fill_poll(app: &Rc<App>, holder: &gtk::Box, poll: Poll, peek: bool) {
     while let Some(c) = holder.first_child() {
         holder.remove(&c);
     }
     let b = gtk::Box::new(gtk::Orientation::Vertical, 4);
     b.add_css_class("poll");
     holder.append(&b);
-    let show_results = poll.voted || poll.expired;
+    let can_vote = !poll.voted && !poll.expired;
+    let show_results = !can_vote || peek;
     let total = if poll.multiple {
         poll.voters_count.unwrap_or(poll.votes_count)
     } else {
@@ -823,11 +827,12 @@ fn fill_poll(app: &Rc<App>, holder: &gtk::Box, poll: Poll) {
                     )
                     .await?;
                 if let Some(h) = holder_w.upgrade() {
-                    fill_poll(&a2, &h, Poll::from_json(&v));
+                    fill_poll(&a2, &h, Poll::from_json(&v), false);
                 }
                 Ok(())
             });
         });
+        footer.append(&poll_toggle(app, holder, &poll, "See results", true));
     }
     let people = poll.voters_count.unwrap_or(poll.votes_count);
     let mut info = format!(
@@ -857,14 +862,38 @@ fn fill_poll(app: &Rc<App>, holder: &gtk::Box, poll: Poll) {
             a.spawn(async move {
                 let v = api.get(&format!("/api/v1/polls/{id}"), &[]).await?;
                 if let Some(h) = holder_w.upgrade() {
-                    fill_poll(&a2, &h, Poll::from_json(&v));
+                    fill_poll(&a2, &h, Poll::from_json(&v), peek);
                 }
                 Ok(())
             });
         });
         footer.append(&refresh);
     }
+    if can_vote && peek {
+        footer.append(&poll_toggle(app, holder, &poll, "Back to voting", false));
+    }
     b.append(&footer);
+}
+
+/// A de-emphasised button that re-shows `poll` with or without results.
+fn poll_toggle(
+    app: &Rc<App>,
+    holder: &gtk::Box,
+    poll: &Poll,
+    label: &str,
+    peek: bool,
+) -> gtk::Button {
+    let btn = gtk::Button::with_label(label);
+    btn.add_css_class("flat");
+    let a = app.clone();
+    let poll = poll.clone();
+    let holder_w = holder.downgrade();
+    btn.connect_clicked(move |_| {
+        if let Some(h) = holder_w.upgrade() {
+            fill_poll(&a, &h, poll.clone(), peek);
+        }
+    });
+    btn
 }
 
 pub fn notification(app: &Rc<App>, n: Notification) -> gtk::Widget {
