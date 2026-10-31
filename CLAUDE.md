@@ -80,6 +80,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   which gives "natural size must be >= min size" warnings or squashed images.
   `FitRow` reports a constant size from its last allocated width and re-queues a
   resize when that width changes.
+- Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
+  as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

@@ -226,7 +226,12 @@ pub fn to_markup(html: &str) -> String {
             }
         }
         Ev::LinkStart(href) => {
-            out.push_str(&format!("<a href=\"{}\">", glib::markup_escape_text(&href)));
+            // GtkLabel shows a link's title as a tooltip, so hovering a
+            // link shows where it goes, as in a browser.  The title is
+            // itself markup, hence escaped twice.
+            let href = glib::markup_escape_text(&href);
+            let title = glib::markup_escape_text(&href);
+            out.push_str(&format!("<a href=\"{href}\" title=\"{title}\">"));
             open.push("a");
         }
         Ev::LinkEnd | Ev::Close(_) => {
@@ -283,9 +288,17 @@ mod tests {
         let h = r#"<p>Hi <span class="h-card"><a href="https://x.y/@bob" class="u-url mention">@<span>bob</span></a></span> see <a href="https://example.com/very/long/path" rel="nofollow"><span class="invisible">https://</span><span class="ellipsis">example.com/very</span><span class="invisible">/long/path</span></a></p><p>a &amp; b<br>c</p>"#;
         assert_eq!(
             to_markup(h),
-            "Hi <a href=\"https://x.y/@bob\">@bob</a> see <a href=\"https://example.com/very/long/path\">example.com/very…</a>\n\na &amp; b\nc"
+            "Hi <a href=\"https://x.y/@bob\" title=\"https://x.y/@bob\">@bob</a> see <a href=\"https://example.com/very/long/path\" title=\"https://example.com/very/long/path\">example.com/very…</a>\n\na &amp; b\nc"
         );
         assert_eq!(to_text(h), "Hi @bob see example.com/very…\n\na & b\nc");
+    }
+
+    #[test]
+    fn link_title_escaped() {
+        assert_eq!(
+            to_markup(r#"<a href="https://e.x/?a=1&amp;b=2">here</a>"#),
+            "<a href=\"https://e.x/?a=1&amp;b=2\" title=\"https://e.x/?a=1&amp;amp;b=2\">here</a>"
+        );
     }
 
     #[test]
