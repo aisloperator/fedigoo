@@ -44,6 +44,8 @@ pub struct Settings {
     pub show_sensitive_media: bool,
     pub expand_content_warnings: bool,
     pub stream_updates: bool,
+    /// Sidebar shows icons only (labels as tooltips).
+    pub compact_sidebar: bool,
 }
 
 impl Default for Settings {
@@ -52,6 +54,7 @@ impl Default for Settings {
             show_sensitive_media: false,
             expand_content_warnings: false,
             stream_updates: true,
+            compact_sidebar: false,
         }
     }
 }
@@ -112,6 +115,7 @@ impl Config {
                 show_sensitive_media: flag("show_sensitive_media", d.show_sensitive_media),
                 expand_content_warnings: flag("expand_content_warnings", d.expand_content_warnings),
                 stream_updates: flag("stream_updates", d.stream_updates),
+                compact_sidebar: flag("compact_sidebar", d.compact_sidebar),
             },
         }
     }
@@ -164,6 +168,7 @@ impl Config {
                     ("show_sensitive_media", s.show_sensitive_media.into()),
                     ("expand_content_warnings", s.expand_content_warnings.into()),
                     ("stream_updates", s.stream_updates.into()),
+                    ("compact_sidebar", s.compact_sidebar.into()),
                 ]),
             ),
         ]);

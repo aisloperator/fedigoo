@@ -222,3 +222,22 @@ button.pill {
   border-radius: 999px;
   padding: 6px 18px;
 }
+
+/* Unread count on the Notifications icon when the sidebar shows icons only. */
+.compact .badge-host {
+  margin: 4px 8px;
+}
+
+.badge-dot {
+  padding: 0 4px;
+  font-size: 0.65em;
+  min-width: 8px;
+}
+
+.sidebar-column {
+  background: @theme_base_color;
+}
+
+.sidebar-toggle {
+  margin: 4px;
+}

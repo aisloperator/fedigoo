@@ -99,6 +99,12 @@ pub struct App {
     subtitle: gtk::Label,
     sidebar: gtk::ListBox,
     notif_badge: gtk::Label,
+    /// The unread count on the Notifications icon, for icons-only mode.
+    notif_dot: gtk::Label,
+    side_labels: Vec<gtk::Label>,
+    side_scroll: gtk::ScrolledWindow,
+    /// Switches the sidebar between icons with labels and icons only.
+    side_toggle: gtk::Button,
     unread: Cell<u32>,
     account_btn: gtk::MenuButton,
     toast: gtk::Revealer,
@@ -169,16 +175,35 @@ impl App {
         let sidebar = gtk::ListBox::new();
         sidebar.add_css_class("navigation-sidebar");
         sidebar.set_selection_mode(gtk::SelectionMode::Single);
+        // The unread count shows after the label, or, in icons-only mode,
+        // as a small bubble on the icon's corner.
         let notif_badge = gtk::Label::new(None);
         notif_badge.add_css_class("badge");
         notif_badge.set_visible(false);
+        let notif_dot = gtk::Label::new(None);
+        notif_dot.add_css_class("badge");
+        notif_dot.add_css_class("badge-dot");
+        notif_dot.set_halign(gtk::Align::End);
+        notif_dot.set_valign(gtk::Align::Start);
+        notif_dot.set_can_target(false);
+        notif_dot.set_visible(false);
+        let mut side_labels = Vec::new();
         for (root, label, icon) in ROOTS {
             let b = gtk::Box::new(gtk::Orientation::Horizontal, 10);
             b.set_margin_start(6);
             b.set_margin_end(6);
             b.set_margin_top(4);
             b.set_margin_bottom(4);
-            b.append(&gtk::Image::from_icon_name(icon));
+            let img = gtk::Image::from_icon_name(icon);
+            if *root == Root::Notifications {
+                let o = gtk::Overlay::new();
+                img.add_css_class("badge-host");
+                o.set_child(Some(&img));
+                o.add_overlay(&notif_dot);
+                b.append(&o);
+            } else {
+                b.append(&img);
+            }
             let l = gtk::Label::new(Some(label));
             l.set_xalign(0.0);
             l.set_hexpand(true);
@@ -187,12 +212,23 @@ impl App {
                 b.append(&notif_badge);
             }
             sidebar.append(&b);
+            if let Some(row) = sidebar.last_child() {
+                row.update_property(&[gtk::accessible::Property::Label(label)]);
+            }
+            side_labels.push(l);
         }
         let side_scroll = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
+            .vexpand(true)
             .child(&sidebar)
-            .width_request(200)
             .build();
+        let side_toggle = gtk::Button::new();
+        side_toggle.add_css_class("flat");
+        side_toggle.add_css_class("sidebar-toggle");
+        let side_col = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        side_col.add_css_class("sidebar-column");
+        side_col.append(&side_scroll);
+        side_col.append(&side_toggle);
 
         let stack = gtk::Stack::new();
         stack.set_transition_type(gtk::StackTransitionType::Crossfade);
@@ -217,13 +253,11 @@ impl App {
         overlay.set_child(Some(&stack));
         overlay.add_overlay(&toast);
 
-        let paned = gtk::Paned::new(gtk::Orientation::Horizontal);
-        paned.set_start_child(Some(&side_scroll));
-        paned.set_end_child(Some(&overlay));
-        paned.set_resize_start_child(false);
-        paned.set_shrink_start_child(false);
-        paned.set_position(210);
-        window.set_child(Some(&paned));
+        let main = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        main.append(&side_col);
+        main.append(&gtk::Separator::new(gtk::Orientation::Vertical));
+        main.append(&overlay);
+        window.set_child(Some(&main));
 
         let app = Rc::new(App {
             window,
@@ -242,6 +276,10 @@ impl App {
             subtitle,
             sidebar,
             notif_badge,
+            notif_dot,
+            side_labels,
+            side_scroll,
+            side_toggle,
             unread: Cell::new(0),
             account_btn,
             toast,
@@ -255,6 +293,7 @@ impl App {
             generation: Cell::new(0),
         });
         app.connect_signals(gtk_app);
+        app.apply_sidebar_mode();
         app.rebuild_account_menu();
         app.start();
         app
@@ -275,6 +314,15 @@ impl App {
             .connect_clicked(move |_| compose::open(&a, compose::Mode::New));
         let a = self.clone();
         self.refresh_btn.connect_clicked(move |_| a.refresh());
+        let a = self.clone();
+        self.side_toggle.connect_clicked(move |_| {
+            {
+                let mut c = a.config.borrow_mut();
+                c.settings.compact_sidebar = !c.settings.compact_sidebar;
+                c.save();
+            }
+            a.apply_sidebar_mode();
+        });
         let a = self.clone();
         self.sidebar.connect_row_activated(move |_, row| {
             if let Some((root, ..)) = ROOTS.get(row.index() as usize) {
@@ -433,8 +481,7 @@ impl App {
         *self.api.borrow_mut() = Api::new(&acc.instance, Some(&acc.token));
         *self.me.borrow_mut() = None;
         *self.hidden.borrow_mut() = model::Hidden::default();
-        self.unread.set(0);
-        self.notif_badge.set_visible(false);
+        self.set_unread(0);
         self.sidebar.set_sensitive(true);
         // Until this server says otherwise.
         self.set_live_feed_enabled(Root::Local, true);
@@ -512,7 +559,91 @@ impl App {
         };
         if let Some(row) = self.sidebar.row_at_index(i as i32) {
             row.set_sensitive(enabled);
-            row.set_tooltip_text((!enabled).then_some("This server has turned off this feed"));
+        }
+        self.update_sidebar_tooltips();
+    }
+
+    /// Shows the sidebar with labels, or icons only, as the settings say.
+    fn apply_sidebar_mode(&self) {
+        let compact = self.config.borrow().settings.compact_sidebar;
+        for l in &self.side_labels {
+            l.set_visible(!compact);
+            if let Some(b) = l.parent() {
+                b.set_halign(if compact {
+                    gtk::Align::Center
+                } else {
+                    gtk::Align::Fill
+                });
+            }
+        }
+        if compact {
+            self.sidebar.add_css_class("compact");
+        } else {
+            self.sidebar.remove_css_class("compact");
+        }
+        // With labels hidden the column shrinks to the icons' width.
+        self.side_scroll
+            .set_width_request(if compact { -1 } else { 200 });
+        self.side_toggle.set_icon_name(if compact {
+            "go-next-symbolic"
+        } else {
+            "go-previous-symbolic"
+        });
+        self.side_toggle.set_tooltip_text(Some(if compact {
+            "Show labels"
+        } else {
+            "Show icons only"
+        }));
+        self.side_toggle.set_halign(if compact {
+            gtk::Align::Center
+        } else {
+            gtk::Align::End
+        });
+        self.update_unread_badge();
+        self.update_sidebar_tooltips();
+    }
+
+    fn set_unread(&self, n: u32) {
+        self.unread.set(n);
+        self.update_unread_badge();
+        self.update_sidebar_tooltips();
+    }
+
+    fn update_unread_badge(&self) {
+        let n = self.unread.get();
+        let compact = self.config.borrow().settings.compact_sidebar;
+        let text = if n > 99 {
+            "99+".to_string()
+        } else {
+            n.to_string()
+        };
+        self.notif_badge.set_text(&text);
+        self.notif_dot.set_text(&text);
+        self.notif_badge.set_visible(n > 0 && !compact);
+        self.notif_dot.set_visible(n > 0 && compact);
+    }
+
+    /// Row tooltips: the label in icons-only mode, plus why a row is greyed out.
+    fn update_sidebar_tooltips(&self) {
+        let compact = self.config.borrow().settings.compact_sidebar;
+        for (i, (root, label, _)) in ROOTS.iter().enumerate() {
+            let Some(row) = self.sidebar.row_at_index(i as i32) else {
+                continue;
+            };
+            let off = matches!(root, Root::Local | Root::Federated) && !row.is_sensitive();
+            let unread = self.unread.get();
+            let tip = if off && compact {
+                Some(format!("{label}: this server has turned off this feed"))
+            } else if off {
+                Some("This server has turned off this feed".to_string())
+            } else if compact && *root == Root::Notifications && unread > 0 {
+                Some(format!("{label} ({unread} new)"))
+            } else if compact {
+                Some(label.to_string())
+            } else {
+                None
+            };
+            row.set_tooltip_text(tip.as_deref());
         }
     }
 
@@ -774,8 +905,7 @@ impl App {
         }
         self.reset_nav();
         if root == Root::Notifications {
-            self.unread.set(0);
-            self.notif_badge.set_visible(false);
+            self.set_unread(0);
         }
         let title = ROOTS
             .iter()
@@ -1000,9 +1130,7 @@ impl App {
                     let on_page =
                         self.title.text() == "Notifications" && self.nav.borrow().len() == 1;
                     if !on_page {
-                        self.unread.set(self.unread.get() + 1);
-                        self.notif_badge.set_text(&self.unread.get().to_string());
-                        self.notif_badge.set_visible(true);
+                        self.set_unread(self.unread.get() + 1);
                     }
                 }
             }

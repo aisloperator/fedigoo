@@ -67,6 +67,7 @@ permissions.
 - Explore (trending posts, hashtags and news), followed hashtags, follow requests,
   list management, mutes and blocks, profile editing (including avatar and header)
 - Links to profiles, posts and hashtags on any server open inside the app
+- The sidebar can shrink to icons only (the button at its foot), with labels as tooltips
 
 ## Keyboard shortcuts
 
