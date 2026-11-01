@@ -91,6 +91,8 @@ pub struct App {
     pub max_poll_options: Cell<usize>,
     pub max_media: Cell<usize>,
     nav: RefCell<Vec<Page>>,
+    /// The sidebar entry whose page is at the bottom of `nav`, if any.
+    root: Cell<Option<Root>>,
     stack: gtk::Stack,
     back_btn: gtk::Button,
     compose_btn: gtk::Button,
@@ -268,6 +270,7 @@ impl App {
             max_poll_options: Cell::new(4),
             max_media: Cell::new(4),
             nav: RefCell::new(Vec::new()),
+            root: Cell::new(None),
             stack,
             back_btn,
             compose_btn,
@@ -449,6 +452,7 @@ impl App {
         btn.connect_clicked(move |_| login::open(&a));
         b.append(&btn);
         self.reset_nav();
+        self.root.set(None);
         self.push("FediGoo", b, None, None);
     }
 
@@ -887,6 +891,26 @@ impl App {
         let acc = self.config.borrow().active_account().map(|a| a.full_acct());
         self.subtitle.set_visible(acc.is_some());
         self.subtitle.set_text(&acc.unwrap_or_default());
+        drop(nav);
+        self.sync_sidebar_selection();
+    }
+
+    /// Highlights the sidebar entry only while its own page is showing, not
+    /// while a thread, profile or other page is pushed on top of it.
+    fn sync_sidebar_selection(&self) {
+        let showing_root = self.nav.borrow().len() <= 1;
+        let row = self
+            .root
+            .get()
+            .filter(|_| showing_root)
+            .and_then(|root| ROOTS.iter().position(|(r, ..)| *r == root))
+            .and_then(|i| self.sidebar.row_at_index(i as i32));
+        if self.sidebar.selected_row() != row {
+            match row {
+                Some(row) => self.sidebar.select_row(Some(&row)),
+                None => self.sidebar.unselect_all(),
+            }
+        }
     }
 
     pub fn refresh(&self) {
@@ -897,13 +921,10 @@ impl App {
     }
 
     pub fn show_root(self: &Rc<Self>, root: Root) {
-        if let Some(i) = ROOTS.iter().position(|(r, ..)| *r == root)
-            && let Some(row) = self.sidebar.row_at_index(i as i32)
-            && self.sidebar.selected_row().as_ref() != Some(&row)
-        {
-            self.sidebar.select_row(Some(&row));
-        }
+        self.root.set(Some(root));
         self.reset_nav();
+        // Highlight it now: some root pages (My profile) are pushed later.
+        self.sync_sidebar_selection();
         if root == Root::Notifications {
             self.set_unread(0);
         }

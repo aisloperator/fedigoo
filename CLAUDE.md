@@ -93,7 +93,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - The sidebar switches between icons with labels and icons only (`settings.compact_sidebar`,
   `App::apply_sidebar_mode`). Row tooltips come from `update_sidebar_tooltips`, which
   combines the label with "turned off" for disabled feeds; set the unread count only
-  through `set_unread`, which updates both the badge and the icon bubble.
+  through `set_unread`, which updates both the badge and the icon bubble. The sidebar
+  highlight follows the navigation stack (`sync_sidebar_selection`, run from
+  `update_header`): only while a root page is showing, so change pages via
+  `show_root`/`push`/`pop`, never by selecting rows directly.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Custom emoji shortcodes render as text; video/audio open externally.
