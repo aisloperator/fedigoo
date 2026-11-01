@@ -47,6 +47,8 @@ pub fn grid(app: &Rc<App>, media: &[Media], sensitive: bool) -> gtk::Widget {
         let btn = gtk::Button::builder().child(&overlay).build();
         btn.add_css_class("flat");
         btn.add_css_class("media-button");
+        // One click opens the viewer: show the same hand as over a link.
+        btn.set_cursor_from_name(Some("pointer"));
         btn.set_tooltip_text(Some(m.description.as_deref().unwrap_or("No description")));
         let a = app.clone();
         let all = media.to_vec();

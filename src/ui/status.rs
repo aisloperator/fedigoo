@@ -26,6 +26,8 @@ pub fn avatar_button(app: &Rc<App>, acc: &Account, size: i32) -> gtk::Button {
     b.add_css_class("avatar-button");
     b.set_valign(gtk::Align::Start);
     b.set_tooltip_text(Some(&format!("@{}", acc.acct)));
+    // One click opens the profile, so show the same hand as over a link.
+    b.set_cursor_from_name(Some("pointer"));
     let a = app.clone();
     let acc = acc.clone();
     b.connect_clicked(move |_| pages::open_profile(&a, acc.clone()));
@@ -193,6 +195,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         who.set_child(Some(&l));
         who.add_css_class("flat");
         who.add_css_class("link-button");
+        who.set_cursor_from_name(Some("pointer"));
         let a = app.clone();
         let acc = status.account.clone();
         who.connect_clicked(move |_| pages::open_profile(&a, acc.clone()));
@@ -251,6 +254,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
     let time = gtk::Button::with_label(&util::relative_time(&s.created_at));
     time.add_css_class("flat");
     time.add_css_class("time");
+    time.set_cursor_from_name(Some("pointer"));
     time.set_tooltip_text(Some(&util::absolute_time(&s.created_at)));
     let a = app.clone();
     let s2 = s.clone();
@@ -740,6 +744,7 @@ fn card_widget(app: &Rc<App>, card: &crate::model::Card) -> gtk::Widget {
     b.append(&text);
     let btn = gtk::Button::builder().child(&b).build();
     btn.add_css_class("card");
+    btn.set_cursor_from_name(Some("pointer"));
     btn.set_tooltip_text(Some(&card.url));
     let a = app.clone();
     let url = card.url.clone();

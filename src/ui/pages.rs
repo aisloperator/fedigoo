@@ -667,6 +667,8 @@ pub fn open_profile(app: &Rc<App>, acc: Account) {
         .build();
     av.add_css_class("flat");
     av.add_css_class("avatar-button");
+    // One click opens the viewer: show the same hand as over a link.
+    av.set_cursor_from_name(Some("pointer"));
     let a = app.clone();
     let av_url = acc.avatar.clone();
     av.connect_clicked(move |_| {
@@ -765,6 +767,7 @@ pub fn open_profile(app: &Rc<App>, acc: Account) {
         l.set_markup(&format!("<b>{}</b> {label}", util::count(count)));
         b.set_child(Some(&l));
         b.add_css_class("flat");
+        b.set_cursor_from_name(Some("pointer"));
         let a = app.clone();
         let id = acc.id.clone();
         let title = format!("{} — {label}", acc.name());

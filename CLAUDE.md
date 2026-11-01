@@ -99,6 +99,9 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   `show_root`/`push`/`pop`, never by selecting rows directly.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
+- Avatars, images and link-like targets (boosted-by line, timestamps, link cards,
+  profile counts) that act on a single click get the link hand cursor:
+  `set_cursor_from_name(Some("pointer"))` (the name GtkLabel uses over links).
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display
