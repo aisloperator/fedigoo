@@ -12,7 +12,12 @@ fn decode_entities(s: &str) -> String {
     while let Some(pos) = rest.find('&') {
         out.push_str(&rest[..pos]);
         rest = &rest[pos..];
-        let end = rest[..rest.len().min(12)].find(';');
+        // Entities are short.  Search bytes: slicing the str at a fixed
+        // byte count could split a multi-byte character and panic, and ';'
+        // is ASCII, so wherever it's found is a char boundary.
+        let end = rest.as_bytes()[..rest.len().min(12)]
+            .iter()
+            .position(|&b| b == b';');
         let decoded = end.and_then(|end| {
             let ent = &rest[1..end];
             let c = match ent {
@@ -282,6 +287,16 @@ pub fn to_text(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ampersand_before_multibyte_text() {
+        // Seen in a real post: a bare '&' followed by multi-byte characters
+        // used to panic, slicing inside 'ƒ' while looking for ';'.
+        assert_eq!(decode_entities("a &ƒƒƒƒƒƒƒ b"), "a &ƒƒƒƒƒƒƒ b");
+        assert_eq!(decode_entities("&ééééé;"), "&ééééé;");
+        assert_eq!(decode_entities("x &amp; ƒ"), "x & ƒ");
+        assert_eq!(to_text("<p>Bob &ƒƒƒƒƒƒ</p>"), "Bob &ƒƒƒƒƒƒ");
+    }
 
     #[test]
     fn mastodon_link() {
