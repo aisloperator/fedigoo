@@ -66,7 +66,7 @@ const ROOTS: &[(Root, &str, &str)] = &[
     (
         Root::FollowedTags,
         "Followed hashtags",
-        "bookmark-new-symbolic",
+        "fedigoo-hashtag-symbolic",
     ),
     (Root::FollowRequests, "Follow requests", "list-add-symbolic"),
     (Root::Profile, "My profile", "user-info-symbolic"),
