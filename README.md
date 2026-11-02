@@ -96,6 +96,10 @@ In the image viewer:
     cargo test                   # offline unit tests
     cargo test -- --ignored      # also hits the public mastodon.social API
 
+For testing the UI without a display, GTK's Broadway backend works, and
+`tools/broadway-input.py` sends it real pointer and keyboard input (clicks,
+drags, key shortcuts) in place of a web browser. Its docstring has the details.
+
 ## Code Dependencies
 
 This section is updated before each release.

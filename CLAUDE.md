@@ -122,7 +122,7 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   gives "Broken accounting of active state". Downloads go through a per-flip generation
   check so a late image can't overwrite the current one; `api::load_picture` has no
   such guard. Emitting gesture signals directly doesn't test how gestures interact:
-  test pointer input through Broadway's WebSocket protocol, as a real browser sends it.
+  test pointer input with `tools/broadway-input.py` (see below).
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display
@@ -136,6 +136,20 @@ To get screenshots, add a temporary hook that renders the window with
 `gtk::WidgetPaintable` → `Snapshot` → `renderer().render_texture()` → `save_to_png`.
 Remove the hook afterwards. Public endpoints work with `Api::new("mastodon.social", None)`.
 Clean stderr (no Gtk-WARNING/CRITICAL) is part of "works".
+
+For real pointer and keyboard input (gestures, clicks, drags, shortcuts), use
+`tools/broadway-input.py`: it takes the place of Broadway's browser client and sends
+input through GTK's normal event handling. It is standard-library Python; its docstring
+lists the script commands (`target dialog|main`, `click`, `drag`, `key ctrl+w`, …).
+
+    python3 -I tools/broadway-input.py --display :7 script.txt
+
+Coordinates are relative to the window's surface, which includes about 14px of
+client-side shadow on each side. Pair it with a temporary hook that logs what changed
+(e.g. a window title). Check that no other FediGoo instance is running: GtkApplication
+hands a second launch over to the first and exits with status 0. Known GTK/Broadway
+noise: closing a window after a click inside it (even with GTK's own title-bar close
+button) prints "Broken accounting of active state"; that isn't ours.
 
 ## Git
 
