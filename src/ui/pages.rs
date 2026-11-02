@@ -304,7 +304,15 @@ fn scroll_to_row(row: &gtk::ListBoxRow) {
             .ancestor(gtk::ScrolledWindow::static_type())
             .and_downcast::<gtk::ScrolledWindow>();
         let target = sw.as_ref().and_then(|sw| {
-            let bounds = sw.child().and_then(|c| row.compute_bounds(&c))?;
+            // Measure against the scrolled content, not the GtkViewport the
+            // ScrolledWindow wraps it in: inside the viewport the content is
+            // shifted by the current scroll value, so the target would
+            // depend on where we already are and flip back and forth.
+            let content = match sw.child()?.downcast::<gtk::Viewport>() {
+                Ok(viewport) => viewport.child()?,
+                Err(child) => child,
+            };
+            let bounds = row.compute_bounds(&content)?;
             (row.height() > 0).then(|| (bounds.y() as f64 - 8.0).max(0.0))
         });
         if let (Some(sw), Some(target)) = (sw, target) {
