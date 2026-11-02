@@ -1,6 +1,6 @@
 //! The main window, navigation, account handling and streaming.
 
-use super::{compose, fit, login, pages, prefs, timeline::Timeline};
+use super::{compose, fit, login, pages, paging, prefs, timeline::Timeline};
 use crate::api::{self, Api};
 use crate::config::Config;
 use crate::json::Value;
@@ -18,8 +18,9 @@ const CSS: &str = include_str!("style.css");
 struct Page {
     widget: gtk::Widget,
     title: String,
-    /// Keeps the page's controller alive while the page is shown.
-    _keep: Option<Rc<dyn Any>>,
+    /// Keeps the page's controller (e.g. its `Timeline`) alive while the
+    /// page is shown.
+    keep: Option<Rc<dyn Any>>,
     refresh: Option<Rc<dyn Fn()>>,
 }
 
@@ -321,6 +322,20 @@ impl App {
             .connect_clicked(move |_| compose::open(&a, compose::Mode::New));
         let a = self.clone();
         self.refresh_btn.connect_clicked(move |_| a.refresh());
+        // Paging through posts with PgUp/PgDn, Space and Backspace.  Caught
+        // before the focused widget, which would otherwise take them (a list
+        // row moves its cursor, for example); see `paging::key_action`.
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let a = self.clone();
+        keys.connect_key_pressed(move |_, key, _, mods| {
+            if paging::handle_key(&a, key, mods) {
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
+        self.window.add_controller(keys);
         let a = self.clone();
         self.side_toggle.connect_clicked(move |_| {
             {
@@ -854,7 +869,7 @@ impl App {
         self.nav.borrow_mut().push(Page {
             widget,
             title: title.to_string(),
-            _keep: keep,
+            keep,
             refresh,
         });
         self.update_header();
@@ -921,6 +936,14 @@ impl App {
             }
             row.update_state(&[gtk::accessible::State::Selected(Some(on))]);
         }
+    }
+
+    /// The page on top of the navigation stack and the controller it keeps.
+    pub(super) fn current_page(&self) -> Option<(gtk::Widget, Option<Rc<dyn Any>>)> {
+        self.nav
+            .borrow()
+            .last()
+            .map(|p| (p.widget.clone(), p.keep.clone()))
     }
 
     pub fn refresh(&self) {

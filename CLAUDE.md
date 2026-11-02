@@ -108,6 +108,12 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   (also for "blur" and unknown actions). `status::build`/`notification` return a hidden,
   untracked placeholder for `Hide` (so unblocking can't re-show it), except the main post
   of a thread, which gets the warning bar.
+- Keyboard paging (`ui/paging.rs`): a capture-phase key controller on the main window
+  pages the tallest mapped `ScrolledWindow` of the top page. Where it lands is the pure,
+  tested `paging::page_target` (post rows from the tallest `ListBox`, measured against
+  the viewport's child). Text fields keep Space/Backspace, buttons keep Space. At an end,
+  the page's `keep` (via `App::current_page`) decides: a `Timeline` gets `check_new`, a
+  `ThreadView` gets `reload_at(ThreadFocus::First/Last)`.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Avatars, images and link-like targets (boosted-by line, timestamps, link cards,

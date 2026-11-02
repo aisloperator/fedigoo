@@ -346,8 +346,20 @@ fn scroll_to_row(row: &gtk::ListBoxRow) {
 pub struct ThreadView {
     /// Ids of every post currently shown.
     ids: Rc<RefCell<HashSet<String>>>,
-    /// Reloads the thread, then scrolls to the given post if it's shown.
-    load: Rc<dyn Fn(Option<String>)>,
+    /// Reloads the thread, then scrolls to the given place.
+    load: Rc<dyn Fn(ThreadFocus)>,
+}
+
+/// Where a reloaded thread scrolls to.
+pub enum ThreadFocus {
+    /// The post the thread was opened for.
+    Main,
+    /// This post, if it's still in the thread (else the main one).
+    Post(String),
+    /// The first post (the start of the thread).
+    First,
+    /// The last post (the newest end of the replies).
+    Last,
 }
 
 impl ThreadView {
@@ -356,7 +368,12 @@ impl ThreadView {
     }
 
     pub fn reload_and_show(&self, id: &str) {
-        (self.load)(Some(id.to_string()));
+        (self.load)(ThreadFocus::Post(id.to_string()));
+    }
+
+    /// Reloads the thread, e.g. to look for new replies, ending up at `focus`.
+    pub fn reload_at(&self, focus: ThreadFocus) {
+        (self.load)(focus);
     }
 }
 
@@ -369,7 +386,7 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
     let vb_w = vb.downgrade();
     let ids: Rc<RefCell<HashSet<String>>> = Rc::default();
     let ids2 = ids.clone();
-    let load: Rc<dyn Fn(Option<String>)> = Rc::new(move |scroll_to: Option<String>| {
+    let load: Rc<dyn Fn(ThreadFocus)> = Rc::new(move |scroll_to: ThreadFocus| {
         let Some(vb) = vb_w.upgrade() else { return };
         while let Some(c) = vb.first_child() {
             vb.remove(&c);
@@ -415,7 +432,8 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
             *ids.borrow_mut() = items.iter().map(|(s, ..)| s.id.clone()).collect();
             let mut acts: Vec<Rc<dyn Fn()>> = Vec::new();
             let mut focus_row = None;
-            for (s, d, focused) in items {
+            let count = items.len();
+            for (index, (s, d, focused)) in items.into_iter().enumerate() {
                 let w = status::build(&a2, s.clone(), focused);
                 // Indent via CSS padding: margins upset GTK's size checks here.
                 let depth = d.saturating_sub(1).min(5);
@@ -428,8 +446,10 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
                 lb.append(&row);
                 // Focus the requested post (e.g. a new reply), else the main one.
                 let wanted = match &scroll_to {
-                    Some(target) => *target == s.id,
-                    None => focused,
+                    ThreadFocus::Post(target) => *target == s.id,
+                    ThreadFocus::Main => focused,
+                    ThreadFocus::First => index == 0,
+                    ThreadFocus::Last => index + 1 == count,
                 };
                 if wanted || (focused && focus_row.is_none()) {
                     focus_row = Some(row);
@@ -448,7 +468,7 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
             Ok(())
         });
     });
-    load(None);
+    load(ThreadFocus::Main);
     let view = Rc::new(ThreadView {
         ids,
         load: load.clone(),
@@ -458,7 +478,7 @@ pub fn open_thread(app: &Rc<App>, st: &Status) {
         "Thread",
         page,
         Some(view),
-        Some(Rc::new(move || load(None))),
+        Some(Rc::new(move || load(ThreadFocus::Main))),
     );
 }
 

@@ -6,6 +6,7 @@ mod fit;
 mod login;
 mod media;
 mod pages;
+mod paging;
 mod prefs;
 mod status;
 pub mod theme;

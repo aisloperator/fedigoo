@@ -434,6 +434,16 @@ impl Timeline {
         }
     }
 
+    /// Brings in new posts: the ones waiting behind the "N new items"
+    /// button if there are any, else a fresh load.
+    pub fn check_new(&self) {
+        if self.pending.borrow().is_empty() {
+            self.reload();
+        } else {
+            self.show_pending();
+        }
+    }
+
     fn show_pending(&self) {
         let items: Vec<Value> = self.pending.borrow_mut().drain(..).collect();
         for item in &items {

@@ -81,6 +81,13 @@ permissions.
 | Ctrl+F            | Search      |
 | Ctrl+Enter        | Send post   |
 | Ctrl+Q            | Quit        |
+| PgDn / Space      | Page down   |
+| PgUp / Backspace / Shift+Space | Page up |
+
+Paging lands on the start of a post where that doesn't skip anything, and
+pages through posts taller than the window. Paging up twice at the top of a
+feed checks for new posts; paging twice past either end of a thread checks
+for new replies. Space and Backspace still type in text fields.
 
 In the image viewer:
 
