@@ -33,7 +33,15 @@ Coordinates are in pixels, relative to the current target window's surface
 
 Each command is followed by a short pause (PAUSE seconds) so the app can
 react.  Only one client can be connected to a Broadway server at a time;
-this script takes the place of the browser.
+this script takes the place of the browser.  GTK only lays out windows
+while a client is connected, so for a long test keep one connection and
+feed it commands as they're needed, e.g. through a named pipe:
+
+    mkfifo cmds; python3 -I tools/broadway-input.py - < cmds &
+    exec 3> cmds; echo "click 100 200" >&3; ...; exec 3>&-
+
+When a window appears or goes away under the pointer, the script sends
+leave/enter events as a window system would.
 
 Example (FediGoo's image viewer, with the app showing an image):
     target dialog
@@ -107,6 +115,7 @@ class Client:
         self.t0 = time.monotonic()
         self.target_kind = "main"
         self.entered = None  # surface the pointer is over
+        self.pointer_pos = None  # (root x, y) of the pointer, once it has moved
         threading.Thread(target=self.reader, daemon=True).start()
         self.send(EV_SCREEN_SIZE, [1600, 1000, 1])
 
@@ -167,6 +176,7 @@ class Client:
                     return
                 if opcode in (1, 2):
                     self.parse(data)
+                    self.update_crossing()
         except (EOFError, OSError):
             return
 
@@ -235,6 +245,34 @@ class Client:
                       "this message" % op, file=sys.stderr, flush=True)
                 return
 
+    def surface_under_pointer(self):
+        """The topmost visible surface under the pointer: dialogs (transient
+        windows) are taken to be above the windows they belong to."""
+        if self.pointer_pos is None:
+            return None
+        px, py = self.pointer_pos
+        hits = [
+            (bool(s["parent"]), i)
+            for i, s in list(self.surfaces.items())
+            if s["visible"] and s["x"] <= px < s["x"] + s["w"] and s["y"] <= py < s["y"] + s["h"]
+        ]
+        return max(hits)[1] if hits else None
+
+    def update_crossing(self):
+        """Like a window system: when a window appears or goes away under
+        the still pointer, send leave/enter, so GTK knows where it is."""
+        under = self.surface_under_pointer()
+        if self.entered is None or under == self.entered:
+            return
+        px, py = self.pointer_pos
+        old = self.surfaces.get(self.entered)
+        if old is not None:
+            self.send(EV_LEAVE, [self.entered, self.entered, px, py, px - old["x"], py - old["y"], 0, 0])
+        self.entered = under
+        new = self.surfaces.get(under)
+        if new is not None:
+            self.send(EV_ENTER, [under, under, px, py, px - new["x"], py - new["y"], 0, 0])
+
     # --- targets ---
 
     def find_target(self):
@@ -255,7 +293,6 @@ class Client:
         if kind not in ("dialog", "main"):
             raise SystemExit("target must be 'dialog' or 'main', not %r" % kind)
         self.target_kind = kind
-        self.entered = None
         deadline = time.monotonic() + 30
         while self.find_target() is None:
             if time.monotonic() > deadline:
@@ -273,9 +310,15 @@ class Client:
             raise SystemExit("the %s window has gone" % self.target_kind)
         i, s = target
         if self.entered != i:
-            # Like a browser: one enter as the pointer comes over the window.
+            # Like a browser: leave the window the pointer was over, then one
+            # enter as it comes over this one.
+            old = self.surfaces.get(self.entered) if self.entered is not None else None
+            if old is not None and self.pointer_pos is not None:
+                px, py = self.pointer_pos
+                self.send(EV_LEAVE, [self.entered, self.entered, px, py, px - old["x"], py - old["y"], 0, 0])
             self.send(EV_ENTER, [i, i, s["x"] + x, s["y"] + y, x, y, 0, 0])
             self.entered = i
+        self.pointer_pos = (s["x"] + x, s["y"] + y)
         args = [i, i, s["x"] + x, s["y"] + y, x, y, state]
         if button is not None:
             args.append(button)

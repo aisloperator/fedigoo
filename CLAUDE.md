@@ -111,7 +111,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Keyboard paging (`ui/paging.rs`): a capture-phase key controller on the main window
   pages the tallest mapped `ScrolledWindow` of the top page. Where it lands is the pure,
   tested `paging::page_target` (post rows from the tallest `ListBox`, measured against
-  the viewport's child). Text fields keep Space/Backspace, buttons keep Space. At an end,
+  the viewport's child). Text fields keep Space/Backspace. A focused button keeps Space
+  only if focus last moved by keyboard (navigation keys set it, any pointer press or touch
+  clears it, via an `EventControllerLegacy`): after a click, focus sits on the clicked
+  button or wherever GTK moved it, and GTK's `focus-visible` turns on with any key press,
+  Space included, so it can't tell. At an end,
   the page's `keep` (via `App::current_page`) decides: a `Timeline` gets `check_new`, a
   `ThreadView` gets `reload_at(ThreadFocus::First/Last)`.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
@@ -151,11 +155,17 @@ lists the script commands (`target dialog|main`, `click`, `drag`, `key ctrl+w`, 
     python3 -I tools/broadway-input.py --display :7 script.txt
 
 Coordinates are relative to the window's surface, which includes about 14px of
-client-side shadow on each side. Pair it with a temporary hook that logs what changed
+client-side shadow on each side. GTK only lays out windows while a client is connected,
+so keep one connection open for a whole test (feed commands through a named pipe to
+`-`); widgets measured while it's disconnected report stale (e.g. zero) sizes. The tool
+sends leave/enter when a window appears or closes under the pointer, as a window system
+does; without that, GTK can deliver a later click to a button clicked before a dialog
+opened. Pair it with a temporary hook that logs what changed
 (e.g. a window title). Check that no other FediGoo instance is running: GtkApplication
 hands a second launch over to the first and exits with status 0. Known GTK/Broadway
 noise: closing a window after a click inside it (even with GTK's own title-bar close
-button) prints "Broken accounting of active state"; that isn't ours.
+button), or hiding a widget soon after it was clicked (the "new posts" pill), prints
+"Broken accounting of active state"; that isn't ours.
 
 ## Git
 

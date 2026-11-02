@@ -336,6 +336,21 @@ impl App {
             }
         });
         self.window.add_controller(keys);
+        // Clicks and taps tell paging that focus no longer came from the
+        // keyboard.  A legacy controller sees every event without taking
+        // part in gestures.
+        let pointer = gtk::EventControllerLegacy::new();
+        pointer.set_propagation_phase(gtk::PropagationPhase::Capture);
+        pointer.connect_event(|_, ev| {
+            if matches!(
+                ev.event_type(),
+                gdk::EventType::ButtonPress | gdk::EventType::TouchBegin
+            ) {
+                paging::pointer_pressed();
+            }
+            glib::Propagation::Proceed
+        });
+        self.window.add_controller(pointer);
         let a = self.clone();
         self.side_toggle.connect_clicked(move |_| {
             {

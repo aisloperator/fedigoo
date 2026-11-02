@@ -66,8 +66,33 @@ pub fn page_target(
     }
 }
 
+thread_local! {
+    /// Whether focus in the main window was last moved with the keyboard
+    /// (navigation keys) rather than by a pointer press or touch.
+    static FOCUS_BY_KEYBOARD: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Notes a pointer press or touch in the main window (see `handle_key`).
+pub fn pointer_pressed() {
+    FOCUS_BY_KEYBOARD.with(|k| k.set(false));
+}
+
 /// Handles a key press in the main window; true if it paged.
 pub fn handle_key(app: &Rc<App>, key: Key, mods: ModifierType) -> bool {
+    if matches!(
+        key,
+        Key::Tab
+            | Key::ISO_Left_Tab
+            | Key::KP_Tab
+            | Key::Up
+            | Key::Down
+            | Key::Left
+            | Key::Right
+            | Key::Home
+            | Key::End
+    ) {
+        FOCUS_BY_KEYBOARD.with(|k| k.set(true));
+    }
     if mods.intersects(
         ModifierType::CONTROL_MASK
             | ModifierType::ALT_MASK
@@ -88,14 +113,20 @@ pub fn handle_key(app: &Rc<App>, key: Key, mods: ModifierType) -> bool {
     };
     let focus = gtk::prelude::GtkWindowExt::focus(&app.window);
     if let Some(f) = &focus {
-        // Text fields keep Space and Backspace; buttons, check boxes and
-        // switches keep Space.
+        // Text fields keep Space and Backspace.  A button, check box or
+        // switch keeps Space only if focus was last moved with the keyboard
+        // (Tab, arrows): after a click, focus sits on the clicked button (a
+        // media thumbnail, a favourite) or wherever GTK moved it when the
+        // clicked button hid (the "new posts" pill), and Space would press
+        // that again.  GTK's own `focus-visible` can't tell these apart: any
+        // key press, Space included, turns it on.
         let editing = f.is::<gtk::Text>()
             || f.is::<gtk::TextView>()
             || f.dynamic_cast_ref::<gtk::Editable>().is_some();
         let pressable =
             f.is::<gtk::Button>() || f.is::<gtk::CheckButton>() || f.is::<gtk::Switch>();
-        if (typing_key && editing) || (key == Key::space && pressable) {
+        let keyboard_focus = FOCUS_BY_KEYBOARD.with(Cell::get);
+        if (typing_key && editing) || (key == Key::space && pressable && keyboard_focus) {
             return false;
         }
     }
