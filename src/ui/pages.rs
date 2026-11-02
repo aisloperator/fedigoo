@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
 
 /// Wraps `child` in a centred, width-limited scrolling column.
-fn column(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
+pub(super) fn column(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     content.add_css_class("timeline-column");
     content.set_size_request(380, -1);
@@ -88,6 +88,7 @@ pub fn root_page(app: &Rc<App>, root: Root, title: &str) {
         Root::Explore => return explore(app, title),
         Root::Search => return search(app, title),
         Root::Lists => return lists(app, title),
+        Root::Filters => return super::filters::page(app, title),
         Root::Profile => {
             let me = app.me.borrow().clone();
             match me {
@@ -1139,7 +1140,7 @@ fn unblock_domain(app: &Rc<App>, domain: &str) {
     });
 }
 
-fn dialog(app: &Rc<App>, title: &str, w: i32, h: i32) -> (gtk::Window, gtk::Box) {
+pub(super) fn dialog(app: &Rc<App>, title: &str, w: i32, h: i32) -> (gtk::Window, gtk::Box) {
     let win = gtk::Window::builder()
         .title(title)
         .transient_for(&app.window)
@@ -1171,7 +1172,7 @@ fn dialog(app: &Rc<App>, title: &str, w: i32, h: i32) -> (gtk::Window, gtk::Box)
     (win, vb)
 }
 
-fn button_row(cancel_win: &gtk::Window, ok_label: &str) -> (gtk::Box, gtk::Button) {
+pub(super) fn button_row(cancel_win: &gtk::Window, ok_label: &str) -> (gtk::Box, gtk::Button) {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     row.set_halign(gtk::Align::End);
     let cancel = gtk::Button::with_label("Cancel");

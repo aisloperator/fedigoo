@@ -155,7 +155,20 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         outer.add_css_class("focused");
     }
 
-    if let Some(title) = &status.filtered {
+    let filtered = match status.filter_match() {
+        // A "hide" filter: an empty widget whose list row is hidden.  The
+        // main post of a thread was opened on purpose, so it gets a warning.
+        Some(model::FilterMatch::Hide(_)) if !focused => {
+            let w = outer.upcast::<gtk::Widget>();
+            super::app::set_post_hidden(&w, true);
+            return w;
+        }
+        Some(model::FilterMatch::Hide(title) | model::FilterMatch::Warn(title)) => {
+            Some(title.clone())
+        }
+        None => None,
+    };
+    if let Some(title) = filtered {
         let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let l = gtk::Label::new(Some(&format!("Filtered: {title}")));
         l.add_css_class("dim-label");
@@ -166,8 +179,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         bar.append(&l);
         bar.append(&show);
         outer.append(&bar);
-        let mut unfiltered = status.clone();
-        unfiltered.filtered = None;
+        let unfiltered = status.unfiltered();
         let a = app.clone();
         show.connect_clicked(glib::clone!(
             #[weak]
@@ -179,6 +191,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
                 outer.append(&build(&a, unfiltered.clone(), focused));
             }
         ));
+        app.track_post(outer.upcast_ref(), model::status_accounts(&status));
         return outer.upcast();
     }
 
@@ -912,6 +925,12 @@ fn poll_toggle(
 }
 
 pub fn notification(app: &Rc<App>, n: Notification) -> gtk::Widget {
+    // A post matching a "hide" filter hides its notification too.
+    if let Some(model::FilterMatch::Hide(_)) = n.status.as_ref().and_then(|s| s.filter_match()) {
+        let w = gtk::Box::new(gtk::Orientation::Vertical, 0).upcast::<gtk::Widget>();
+        super::app::set_post_hidden(&w, true);
+        return w;
+    }
     let mut who = vec![(n.account.id.clone(), n.account.acct.clone())];
     if let Some(st) = &n.status {
         who.extend(model::status_accounts(st));

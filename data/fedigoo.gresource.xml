@@ -13,5 +13,6 @@
     <file alias="fedigoo-bookmarked-symbolic.svg">icons/actions/fedigoo-bookmarked-symbolic.svg</file>
     <file alias="fedigoo-mention-symbolic.svg">icons/actions/fedigoo-mention-symbolic.svg</file>
     <file alias="fedigoo-hashtag-symbolic.svg">icons/actions/fedigoo-hashtag-symbolic.svg</file>
+    <file alias="fedigoo-filter-symbolic.svg">icons/actions/fedigoo-filter-symbolic.svg</file>
   </gresource>
 </gresources>

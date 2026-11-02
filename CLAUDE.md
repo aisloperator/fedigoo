@@ -38,6 +38,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `src/ui/timeline.rs`: generic paged list driven by a `Source` enum; it also takes live
   stream events.
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.
+- `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
+  request body is built by the pure, tested `model::filter_body`.
 - `src/ui/status.rs`: post, notification and conversation widgets. `compose.rs`,
   `login.rs` (OAuth OOB code flow), `media.rs`, `prefs.rs`, `style.css`.
 - `data/`: app icon SVG and `fedigoo.gresource.xml`. `build.rs` runs
@@ -47,8 +49,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `data/icons/actions/`: our own symbolic icons for the post toggles, in on/off pairs that
   differ in shape as well as colour (`fedigoo-boost`/`-boosted`, `-favourite`/`-favourited`,
   `-bookmark`/`-bookmarked`), plus `fedigoo-mention` (an "@", replacing Adwaita's
-  `mail-replied`, whose half-transparent envelope looked disabled) and `fedigoo-hashtag`
-  (a "#" for Followed hashtags). Use fill-only paths
+  `mail-replied`, whose half-transparent envelope looked disabled), `fedigoo-hashtag`
+  (a "#" for Followed hashtags) and `fedigoo-filter` (a funnel for Filters). Use fill-only paths
   (`fill-rule="evenodd"` for hollow shapes): GTK recolours fills of symbolic icons but
   not strokes. Check them at real 1× size.
 - `src/install.rs`: `--install`/`--uninstall` (per-user: `~/.local/bin`, plus the desktop
@@ -101,6 +103,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   `update_header`): only while a root page is showing, so change pages via
   `show_root`/`push`/`pop`. The ListBox's own selection is off (in GTK it follows
   keyboard focus); the highlight is the `SELECTED` state flag set on the row.
+- Filters are applied by the client, as the API says: `Status::filter_match()` gives
+  `FilterMatch::Hide` (any "hide" result, in the post or the boosted post) or `Warn`
+  (also for "blur" and unknown actions). `status::build`/`notification` return a hidden,
+  untracked placeholder for `Hide` (so unblocking can't re-show it), except the main post
+  of a thread, which gets the warning bar.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Avatars, images and link-like targets (boosted-by line, timestamps, link cards,

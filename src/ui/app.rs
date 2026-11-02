@@ -41,6 +41,7 @@ pub enum Root {
     Profile,
     Mutes,
     Blocks,
+    Filters,
 }
 
 const ROOTS: &[(Root, &str, &str)] = &[
@@ -80,6 +81,7 @@ const ROOTS: &[(Root, &str, &str)] = &[
         "Blocked accounts",
         "action-unavailable-symbolic",
     ),
+    (Root::Filters, "Filters", "fedigoo-filter-symbolic"),
 ];
 
 pub struct App {
@@ -1175,7 +1177,7 @@ impl App {
 
 /// Hides or shows a post: its whole list row if it's in one (so no empty
 /// row is left behind), else the widget itself until it's put in a row.
-fn set_post_hidden(w: &gtk::Widget, hide: bool) {
+pub(super) fn set_post_hidden(w: &gtk::Widget, hide: bool) {
     if let Some(row) = w.ancestor(gtk::ListBoxRow::static_type()) {
         row.set_visible(!hide);
         return;

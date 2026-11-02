@@ -221,17 +221,36 @@ pub struct Status {
     pub poll: Option<Poll>,
     pub card: Option<Card>,
     pub application: Option<String>,
-    /// Set when a server-side filter matched with the "warn" action.
-    pub filtered: Option<String>,
+    /// Set when one of the user's filters matched this post.
+    pub filtered: Option<FilterMatch>,
+}
+
+/// What the user's filters say about a post (the API's `filtered`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum FilterMatch {
+    /// Show it collapsed, behind the filter's title.  Also used for "blur"
+    /// and unknown actions, which the API says to treat like "warn".
+    Warn(String),
+    /// Don't show it at all.  Holds the filter's title.
+    Hide(String),
+}
+
+impl FilterMatch {
+    fn from_results(results: &[Value]) -> Option<FilterMatch> {
+        let title = |r: &Value| s(&r["filter"]["title"]);
+        if let Some(r) = results
+            .iter()
+            .find(|r| r["filter"]["filter_action"].str() == "hide")
+        {
+            return Some(FilterMatch::Hide(title(r)));
+        }
+        results.first().map(|r| FilterMatch::Warn(title(r)))
+    }
 }
 
 impl Status {
     pub fn from_json(v: &Value) -> Status {
-        let filtered = v["filtered"]
-            .arr()
-            .iter()
-            .find(|r| r["filter"]["filter_action"].str() == "warn")
-            .map(|r| s(&r["filter"]["title"]));
+        let filtered = FilterMatch::from_results(v["filtered"].arr());
         Status {
             id: s(&v["id"]),
             uri: s(&v["uri"]),
@@ -290,6 +309,26 @@ impl Status {
             application: opt(&v["application"]["name"]),
             filtered,
         }
+    }
+
+    /// The filter verdict for this post or, for a boost, the boosted post;
+    /// "hide" wins over "warn".
+    pub fn filter_match(&self) -> Option<&FilterMatch> {
+        let inner = self.reblog.as_deref().and_then(|r| r.filtered.as_ref());
+        match (self.filtered.as_ref(), inner) {
+            (Some(h @ FilterMatch::Hide(_)), _) | (_, Some(h @ FilterMatch::Hide(_))) => Some(h),
+            (own, inner) => own.or(inner),
+        }
+    }
+
+    /// A copy with every filter verdict cleared ("Show anyway").
+    pub fn unfiltered(&self) -> Status {
+        let mut st = self.clone();
+        st.filtered = None;
+        if let Some(r) = st.reblog.as_mut() {
+            r.filtered = None;
+        }
+        st
     }
 
     /// The status whose content is shown: the boosted one for a boost.
@@ -432,9 +471,233 @@ pub fn status_accounts(st: &Status) -> Vec<(String, String)> {
     who
 }
 
+/// The places a filter can apply, as (API value, label).
+pub const FILTER_CONTEXTS: [(&str, &str); 5] = [
+    ("home", "Home and lists"),
+    ("notifications", "Notifications"),
+    ("public", "Public timelines"),
+    ("thread", "Threads"),
+    ("account", "Profiles"),
+];
+
+/// A keyword or hashtag in a filter.  `id` is empty for one not yet saved.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FilterKeyword {
+    pub id: String,
+    pub keyword: String,
+    pub whole_word: bool,
+}
+
+/// One of the user's filters (`/api/v2/filters`).
+#[derive(Clone, Debug, Default)]
+pub struct Filter {
+    pub id: String,
+    pub title: String,
+    pub context: Vec<String>,
+    /// "warn", "hide" or "blur".
+    pub action: String,
+    pub expires_at: Option<String>,
+    pub keywords: Vec<FilterKeyword>,
+}
+
+impl Filter {
+    pub fn from_json(v: &Value) -> Filter {
+        Filter {
+            id: s(&v["id"]),
+            title: s(&v["title"]),
+            context: v["context"].arr().iter().map(s).collect(),
+            action: s(&v["filter_action"]),
+            expires_at: opt(&v["expires_at"]),
+            keywords: v["keywords"]
+                .arr()
+                .iter()
+                .map(|k| FilterKeyword {
+                    id: s(&k["id"]),
+                    keyword: s(&k["keyword"]),
+                    whole_word: k["whole_word"].bool(),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Expiry chosen in the filter editor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Expiry {
+    /// Leave an existing filter's expiry as it is.
+    Unchanged,
+    Never,
+    /// This many seconds from now.
+    In(i64),
+}
+
+/// The JSON body that creates a filter (`old` is None) or updates `old` to
+/// match the edited fields.  Keywords keep their ids; ones removed from
+/// `old` are sent with `_destroy`.
+pub fn filter_body(
+    title: &str,
+    context: &[String],
+    action: &str,
+    expiry: Expiry,
+    keywords: &[FilterKeyword],
+    old: Option<&Filter>,
+) -> Value {
+    let mut attrs: Vec<Value> = keywords
+        .iter()
+        .filter(|k| !k.keyword.trim().is_empty())
+        .map(|k| {
+            let mut o = vec![
+                ("keyword".to_string(), Value::from(k.keyword.trim())),
+                ("whole_word".to_string(), k.whole_word.into()),
+            ];
+            if !k.id.is_empty() {
+                o.push(("id".to_string(), k.id.as_str().into()));
+            }
+            Value::Obj(o)
+        })
+        .collect();
+    if let Some(old) = old {
+        for k in &old.keywords {
+            if !keywords.iter().any(|n| n.id == k.id) {
+                attrs.push(Value::Obj(vec![
+                    ("id".to_string(), k.id.as_str().into()),
+                    ("_destroy".to_string(), true.into()),
+                ]));
+            }
+        }
+    }
+    let mut body = vec![
+        ("title".to_string(), Value::from(title.trim())),
+        (
+            "context".to_string(),
+            context
+                .iter()
+                .map(|c| Value::from(c.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
+        ),
+        ("filter_action".to_string(), action.into()),
+        ("keywords_attributes".to_string(), attrs.into()),
+    ];
+    match expiry {
+        Expiry::Unchanged => {}
+        // A new filter never expires by default; an existing one is cleared.
+        Expiry::Never if old.is_none() => {}
+        Expiry::Never => body.push(("expires_in".to_string(), Value::Null)),
+        Expiry::In(secs) => body.push(("expires_in".to_string(), secs.into())),
+    }
+    Value::Obj(body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn filtered(actions: &[(&str, &str)]) -> String {
+        let results: Vec<String> = actions
+            .iter()
+            .map(|(title, action)| {
+                format!(r#"{{"filter":{{"title":"{title}","filter_action":"{action}"}}}}"#)
+            })
+            .collect();
+        format!("[{}]", results.join(","))
+    }
+
+    fn status(own: &str, reblog: Option<&str>) -> Status {
+        let reblog = reblog.map_or("null".to_string(), |r| {
+            format!(r#"{{"id":"2","filtered":{r}}}"#)
+        });
+        Status::from_json(
+            &Value::parse(&format!(
+                r#"{{"id":"1","filtered":{own},"reblog":{reblog}}}"#
+            ))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn filter_matches() {
+        use FilterMatch::*;
+        assert_eq!(status("[]", None).filter_match(), None);
+        assert_eq!(
+            status(&filtered(&[("a", "warn")]), None).filter_match(),
+            Some(&Warn("a".into()))
+        );
+        // "blur" and unknown actions are treated like "warn".
+        assert_eq!(
+            status(&filtered(&[("b", "blur")]), None).filter_match(),
+            Some(&Warn("b".into()))
+        );
+        // "hide" wins over "warn", in the post or in the boosted post.
+        assert_eq!(
+            status(&filtered(&[("a", "warn"), ("h", "hide")]), None).filter_match(),
+            Some(&Hide("h".into()))
+        );
+        let boost = status(
+            &filtered(&[("a", "warn")]),
+            Some(&filtered(&[("h", "hide")])),
+        );
+        assert_eq!(boost.filter_match(), Some(&Hide("h".into())));
+        assert_eq!(boost.unfiltered().filter_match(), None);
+    }
+
+    fn kw(id: &str, keyword: &str, whole_word: bool) -> FilterKeyword {
+        FilterKeyword {
+            id: id.into(),
+            keyword: keyword.into(),
+            whole_word,
+        }
+    }
+
+    #[test]
+    fn filter_bodies() {
+        let ctx = vec!["home".to_string(), "public".to_string()];
+        // New filter: no ids, blank keywords dropped, no expiry sent for "never".
+        let body = filter_body(
+            " Spoilers ",
+            &ctx,
+            "warn",
+            Expiry::Never,
+            &[kw("", "#show", false), kw("", "  ", true)],
+            None,
+        );
+        assert_eq!(
+            body.to_string(),
+            r##"{"title":"Spoilers","context":["home","public"],"filter_action":"warn","keywords_attributes":[{"keyword":"#show","whole_word":false}]}"##
+        );
+
+        let old = Filter {
+            id: "9".into(),
+            keywords: vec![kw("1", "keep", true), kw("2", "drop", false)],
+            ..Default::default()
+        };
+        // Update: kept keyword keeps its id, removed one is destroyed,
+        // "never" clears the expiry.
+        let body = filter_body(
+            "T",
+            &ctx,
+            "hide",
+            Expiry::Never,
+            &[kw("1", "kept", false), kw("", "new", true)],
+            Some(&old),
+        );
+        assert_eq!(
+            body.to_string(),
+            r#"{"title":"T","context":["home","public"],"filter_action":"hide","keywords_attributes":[{"keyword":"kept","whole_word":false,"id":"1"},{"keyword":"new","whole_word":true},{"id":"2","_destroy":true}],"expires_in":null}"#
+        );
+        let expiry =
+            |e| filter_body("T", &ctx, "warn", e, &[], Some(&old))["expires_in"].to_string();
+        assert_eq!(expiry(Expiry::In(3600)), "3600");
+        assert!(
+            filter_body("T", &ctx, "warn", Expiry::Unchanged, &[], Some(&old))["expires_in"]
+                .is_null()
+        );
+        assert!(
+            !filter_body("T", &ctx, "warn", Expiry::Unchanged, &[], Some(&old))
+                .to_string()
+                .contains("expires_in")
+        );
+    }
 
     #[test]
     fn hidden_accounts_and_domains() {
