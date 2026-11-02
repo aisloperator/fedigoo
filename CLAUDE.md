@@ -116,8 +116,13 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - The image viewer (`media::Viewer`) has two `Picture`s taking turns in a `Stack`, so
   flips slide. Its keys are on a capture-phase controller (so they work wherever focus
   is), but a focused button keeps Space and the selectable alt text keeps the arrows.
-  Downloads go through a per-flip generation check so a late image can't overwrite the
-  current one; `api::load_picture` has no such guard.
+  Taps and swipes share one `GestureDrag` (`press_action` decides on release), because
+  a separate `GestureClick` also fires on the release of a drag and flips a second time.
+  The pictures are `can_target(false)`: if one is the press target, the stack hiding it
+  gives "Broken accounting of active state". Downloads go through a per-flip generation
+  check so a late image can't overwrite the current one; `api::load_picture` has no
+  such guard. Emitting gesture signals directly doesn't test how gestures interact:
+  test pointer input through Broadway's WebSocket protocol, as a real browser sends it.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

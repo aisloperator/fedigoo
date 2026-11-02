@@ -130,6 +130,29 @@ const BACK_ZONE: f64 = 0.2;
 /// Horizontal drag distance (px) that flips to the next or previous image.
 const SWIPE_MIN: f64 = 60.0;
 
+/// What a press on the image did, judged on release from how far the
+/// pointer moved.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PressAction {
+    /// It hardly moved (within the drag threshold): a click or tap.
+    Tap,
+    /// A mostly sideways drag of at least `SWIPE_MIN`: like a phone gallery,
+    /// dragging left (the image moves left) brings the next image (+1).
+    Swipe(i32),
+    /// Anything else: too short to be a swipe, or mostly vertical.
+    None,
+}
+
+fn press_action(dx: f64, dy: f64, threshold: f64) -> PressAction {
+    if dx.abs() < threshold && dy.abs() < threshold {
+        PressAction::Tap
+    } else if dx.abs() >= SWIPE_MIN && dx.abs() > dy.abs() {
+        PressAction::Swipe(if dx < 0.0 { 1 } else { -1 })
+    } else {
+        PressAction::None
+    }
+}
+
 /// The full-size image viewer window.  Two pictures take turns in a stack,
 /// so flipping slides the new image in like a phone's photo gallery.
 struct Viewer {
@@ -160,6 +183,10 @@ impl Viewer {
             let p = gtk::Picture::new();
             p.set_content_fit(gtk::ContentFit::Contain);
             p.set_can_shrink(true);
+            // The stage handles the pointer: if a picture were the press
+            // target, the stack hiding it after a flip upsets GTK's
+            // pressed-state bookkeeping ("Broken accounting of active state").
+            p.set_can_target(false);
             p
         };
         let pics = [pic(), pic()];
@@ -282,30 +309,35 @@ impl Viewer {
         ));
         win.add_controller(keys);
 
-        // A click on the left part of the image goes back, anywhere else
-        // forward.  (A drag cancels the click, so the two don't mix.)
-        let click = gtk::GestureClick::new();
-        let w = with.clone();
-        click.connect_released(move |g, n_press, x, _| {
-            if n_press != 1 {
-                return;
-            }
-            w(&|v| {
-                v.stage.grab_focus();
-                v.go(if v.in_back_zone(x) { -1 } else { 1 });
-            });
-            g.set_state(gtk::EventSequenceState::Claimed);
-        });
-        stage.add_controller(click);
-
-        // Swiping, with a mouse or a finger: drag left for the next image,
-        // right for the previous one.
+        // One gesture handles both taps and swipes, so a single press can
+        // only ever flip once: on release, a pointer that barely moved is a
+        // tap (the left part of the image goes back, anywhere else forward)
+        // and a long sideways movement is a swipe.
         let drag = gtk::GestureDrag::new();
         let w = with.clone();
-        drag.connect_drag_end(move |_, dx, dy| {
-            if dx.abs() >= SWIPE_MIN && dx.abs() > dy.abs() {
-                w(&|v| v.go(if dx < 0.0 { 1 } else { -1 }));
+        drag.connect_drag_end(move |g, dx, dy| {
+            let threshold = gtk::Settings::default()
+                .map_or(8, |s| s.gtk_dnd_drag_threshold())
+                .max(1) as f64;
+            let x = g.start_point().map_or(0.0, |(x, _)| x) + dx;
+            let w = w.clone();
+            let action = press_action(dx, dy, threshold);
+            if action == PressAction::None {
+                return;
             }
+            // Flip after GTK has finished with this release: swapping the
+            // picture under the pointer mid-event upsets its bookkeeping.
+            glib::idle_add_local_once(move || {
+                w(&|v| {
+                    v.stage.grab_focus();
+                    v.go(match action {
+                        PressAction::Tap if v.in_back_zone(x) => -1,
+                        PressAction::Tap => 1,
+                        PressAction::Swipe(step) => step,
+                        PressAction::None => 0,
+                    });
+                })
+            });
         });
         stage.add_controller(drag);
 
@@ -390,5 +422,24 @@ impl Viewer {
         let img_w = w.min(h * aspect);
         let left = (w - img_w) / 2.0;
         x < left + img_w * BACK_ZONE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn press_actions() {
+        use PressAction::*;
+        // Barely moving is a tap, not a swipe.
+        assert_eq!(press_action(0.0, 0.0, 8.0), Tap);
+        assert_eq!(press_action(5.0, -3.0, 8.0), Tap);
+        // Dragging left brings the next image, right the previous one.
+        assert_eq!(press_action(-120.0, 10.0, 8.0), Swipe(1));
+        assert_eq!(press_action(150.0, -20.0, 8.0), Swipe(-1));
+        // Too short, or mostly vertical: nothing.
+        assert_eq!(press_action(30.0, 0.0, 8.0), None);
+        assert_eq!(press_action(-80.0, 200.0, 8.0), None);
     }
 }
