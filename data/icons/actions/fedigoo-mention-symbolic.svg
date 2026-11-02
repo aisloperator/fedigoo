@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mentions: an "@" sign, solid like the theme's other sidebar icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#2e3436" fill-rule="evenodd" d="M11 8A3 3 0 1 0 5 8A3 3 0 1 0 11 8ZM9.5 8A1.5 1.5 0 1 1 6.5 8A1.5 1.5 0 1 1 9.5 8Z"/>
+  <path fill="#2e3436" d="M9.5 5H11V9.68H9.5Z"/>
+  <path fill="#2e3436" d="M9.5 9.68A2.76 2.76 0 0 0 15.03 9.68H13.53A1.26 1.26 0 0 1 11 9.68Z"/>
+  <path fill="#2e3436" d="M15 9.88A7.25 7.25 0 1 0 11.62 14.28L10.88 12.98A5.75 5.75 0 1 1 13.55 9.49Z"/>
+</svg>

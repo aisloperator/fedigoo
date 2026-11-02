@@ -923,7 +923,7 @@ pub fn notification(app: &Rc<App>, n: Notification) -> gtk::Widget {
 
 fn notification_widget(app: &Rc<App>, n: Notification) -> gtk::Widget {
     let (icon, verb) = match n.kind.as_str() {
-        "mention" => ("mail-replied-symbolic", "mentioned you"),
+        "mention" => ("fedigoo-mention-symbolic", "mentioned you"),
         "reblog" => ("media-playlist-repeat-symbolic", "boosted your post"),
         "favourite" => ("starred-symbolic", "favourited your post"),
         "follow" => ("list-add-symbolic", "followed you"),
@@ -944,7 +944,7 @@ fn notification_widget(app: &Rc<App>, n: Notification) -> gtk::Widget {
             "dialog-warning-symbolic",
             "— you received a moderation warning",
         ),
-        "quote" => ("mail-replied-symbolic", "quoted your post"),
+        "quote" => ("fedigoo-mention-symbolic", "quoted your post"),
         _ => (
             "preferences-system-notifications-symbolic",
             "sent a notification",

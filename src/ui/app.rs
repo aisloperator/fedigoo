@@ -50,7 +50,7 @@ const ROOTS: &[(Root, &str, &str)] = &[
         "Notifications",
         "preferences-system-notifications-symbolic",
     ),
-    (Root::Mentions, "Mentions", "mail-replied-symbolic"),
+    (Root::Mentions, "Mentions", "fedigoo-mention-symbolic"),
     (
         Root::Conversations,
         "Private mentions",

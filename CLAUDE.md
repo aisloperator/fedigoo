@@ -46,8 +46,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   Use `crate::APP_ID` as the icon name.
 - `data/icons/actions/`: our own symbolic icons for the post toggles, in on/off pairs that
   differ in shape as well as colour (`fedigoo-boost`/`-boosted`, `-favourite`/`-favourited`,
-  `-bookmark`/`-bookmarked`). Use fill-only paths (`fill-rule="evenodd"` for hollow shapes):
-  GTK recolours fills of symbolic icons but not strokes. Check them at real 1× size.
+  `-bookmark`/`-bookmarked`), plus `fedigoo-mention` (an "@", replacing Adwaita's
+  `mail-replied`, whose half-transparent envelope looked disabled). Use fill-only paths
+  (`fill-rule="evenodd"` for hollow shapes): GTK recolours fills of symbolic icons but
+  not strokes. Check them at real 1× size.
 - `src/install.rs`: `--install`/`--uninstall` (per-user: `~/.local/bin`, plus the desktop
   entry from `data/com.aisloperator.FediGoo.desktop.in` and the icon under
   `glib::user_data_dir()`). `main.rs` sets the prgname to `APP_ID` so the X11 WM_CLASS
