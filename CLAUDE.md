@@ -113,6 +113,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Avatars, images and link-like targets (boosted-by line, timestamps, link cards,
   profile counts) that act on a single click get the link hand cursor:
   `set_cursor_from_name(Some("pointer"))` (the name GtkLabel uses over links).
+- The image viewer (`media::Viewer`) has two `Picture`s taking turns in a `Stack`, so
+  flips slide. Its keys are on a capture-phase controller (so they work wherever focus
+  is), but a focused button keeps Space and the selectable alt text keeps the arrows.
+  Downloads go through a per-flip generation check so a late image can't overwrite the
+  current one; `api::load_picture` has no such guard.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

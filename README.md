@@ -82,6 +82,15 @@ permissions.
 | Ctrl+Enter        | Send post   |
 | Ctrl+Q            | Quit        |
 
+In the image viewer:
+
+| Key or gesture                         | Action          |
+|----------------------------------------|-----------------|
+| Right / Space, or click the image      | Next image      |
+| Left / Backspace, or click its left 20% | Previous image |
+| Swipe or drag left / right             | Next / previous |
+| Esc / Ctrl+W                           | Close           |
+
 ## Tests
 
     cargo test                   # offline unit tests
