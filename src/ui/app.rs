@@ -176,7 +176,9 @@ impl App {
 
         let sidebar = gtk::ListBox::new();
         sidebar.add_css_class("navigation-sidebar");
-        sidebar.set_selection_mode(gtk::SelectionMode::Single);
+        // GTK's own selection follows keyboard focus, so the highlight is
+        // managed by `sync_sidebar_selection` instead; rows still activate.
+        sidebar.set_selection_mode(gtk::SelectionMode::None);
         // The unread count shows after the label, or, in icons-only mode,
         // as a small bubble on the icon's corner.
         let notif_badge = gtk::Label::new(None);
@@ -899,17 +901,23 @@ impl App {
     /// while a thread, profile or other page is pushed on top of it.
     fn sync_sidebar_selection(&self) {
         let showing_root = self.nav.borrow().len() <= 1;
-        let row = self
+        let current = self
             .root
             .get()
             .filter(|_| showing_root)
-            .and_then(|root| ROOTS.iter().position(|(r, ..)| *r == root))
-            .and_then(|i| self.sidebar.row_at_index(i as i32));
-        if self.sidebar.selected_row() != row {
-            match row {
-                Some(row) => self.sidebar.select_row(Some(&row)),
-                None => self.sidebar.unselect_all(),
+            .and_then(|root| ROOTS.iter().position(|(r, ..)| *r == root));
+        // The theme's :selected style, without GTK's focus-driven selection.
+        for i in 0..ROOTS.len() {
+            let Some(row) = self.sidebar.row_at_index(i as i32) else {
+                continue;
+            };
+            let on = current == Some(i);
+            if on {
+                row.set_state_flags(gtk::StateFlags::SELECTED, false);
+            } else {
+                row.unset_state_flags(gtk::StateFlags::SELECTED);
             }
+            row.update_state(&[gtk::accessible::State::Selected(Some(on))]);
         }
     }
 

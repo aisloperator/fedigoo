@@ -98,7 +98,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   through `set_unread`, which updates both the badge and the icon bubble. The sidebar
   highlight follows the navigation stack (`sync_sidebar_selection`, run from
   `update_header`): only while a root page is showing, so change pages via
-  `show_root`/`push`/`pop`, never by selecting rows directly.
+  `show_root`/`push`/`pop`. The ListBox's own selection is off (in GTK it follows
+  keyboard focus); the highlight is the `SELECTED` state flag set on the row.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Avatars, images and link-like targets (boosted-by line, timestamps, link cards,
