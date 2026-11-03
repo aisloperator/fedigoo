@@ -76,7 +76,7 @@ KEYSYMS = {
     "BackSpace": 0xFF08, "Tab": 0xFF09, "Return": 0xFF0D, "Escape": 0xFF1B,
     "Delete": 0xFFFF, "Home": 0xFF50, "Left": 0xFF51, "Up": 0xFF52,
     "Right": 0xFF53, "Down": 0xFF54, "Page_Up": 0xFF55, "Page_Down": 0xFF56,
-    "End": 0xFF57, "space": 0x20,
+    "End": 0xFF57, "Menu": 0xFF67, "space": 0x20,
 }
 KEYSYMS.update({"F%d" % n: 0xFFBD + n for n in range(1, 13)})
 

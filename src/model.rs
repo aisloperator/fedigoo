@@ -191,6 +191,38 @@ pub struct Card {
     pub provider: String,
 }
 
+impl Card {
+    /// A Markdown link `[title](url)`. The title falls back to the URL; its
+    /// whitespace is collapsed to single spaces (a line break would end the
+    /// link) and characters that Markdown would take as syntax get a
+    /// backslash. In the URL, spaces, parentheses and angle brackets are
+    /// percent-encoded so that the link's destination ends where it should.
+    pub fn markdown_link(&self) -> String {
+        let title = self.title.split_whitespace().collect::<Vec<_>>().join(" ");
+        let title = if title.is_empty() { &self.url } else { &title };
+        let mut text = String::new();
+        for c in title.chars() {
+            if matches!(c, '\\' | '[' | ']' | '*' | '_' | '`' | '<' | '>') {
+                text.push('\\');
+            }
+            text.push(c);
+        }
+        let mut dest = String::new();
+        for c in self.url.chars() {
+            match c {
+                ' ' => dest.push_str("%20"),
+                '(' => dest.push_str("%28"),
+                ')' => dest.push_str("%29"),
+                '<' => dest.push_str("%3C"),
+                '>' => dest.push_str("%3E"),
+                c if c.is_whitespace() => {}
+                c => dest.push(c),
+            }
+        }
+        format!("[{text}]({dest})")
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Status {
     pub id: String,
@@ -725,5 +757,33 @@ mod tests {
         assert_eq!(m(r#"{"small":{"width":400,"height":200}}"#), 2.0);
         assert_eq!(m(r#"{"original":{"aspect":0.5}}"#), 0.5);
         assert_eq!(m("null"), 0.0);
+    }
+
+    #[test]
+    fn card_markdown_links() {
+        let card = |title: &str, url: &str| Card {
+            title: title.into(),
+            url: url.into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            card("Rust 1.90 is out", "https://blog.rust-lang.org/x").markdown_link(),
+            "[Rust 1.90 is out](https://blog.rust-lang.org/x)"
+        );
+        // Markdown syntax in the title is escaped, line breaks collapsed.
+        assert_eq!(
+            card(" The [best] *new*\n  thing_s ", "https://e.x/a").markdown_link(),
+            r"[The \[best\] \*new\* thing\_s](https://e.x/a)"
+        );
+        // Parentheses and spaces in the URL can't end the destination early.
+        assert_eq!(
+            card("Rust", "https://en.wikipedia.org/wiki/Rust_(language) x").markdown_link(),
+            "[Rust](https://en.wikipedia.org/wiki/Rust_%28language%29%20x)"
+        );
+        // No title: the URL is the text.
+        assert_eq!(
+            card("  ", "https://e.x/a_b").markdown_link(),
+            r"[https://e.x/a\_b](https://e.x/a_b)"
+        );
     }
 }

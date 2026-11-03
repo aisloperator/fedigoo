@@ -6,7 +6,7 @@ use crate::html;
 use crate::json::{Value, obj};
 use crate::model::{self, Account, Notification, Poll, Status};
 use crate::util;
-use gtk::{glib, pango, prelude::*};
+use gtk::{gdk, gio, glib, pango, prelude::*};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -762,7 +762,86 @@ fn card_widget(app: &Rc<App>, card: &crate::model::Card) -> gtk::Widget {
     let a = app.clone();
     let url = card.url.clone();
     btn.connect_clicked(move |_| a.open_url(&url));
+    card_menu(app, &btn, card);
     btn.upcast()
+}
+
+/// A context menu on a link card, like the one GtkLabel gives links in the
+/// post text, plus "Copy Link as Markdown". It opens on a right click, a
+/// long press (touch), or Shift+F10/Menu while the card has focus.
+fn card_menu(app: &Rc<App>, btn: &gtk::Button, card: &model::Card) {
+    let group = gio::SimpleActionGroup::new();
+    let add = |name: &str, f: Box<dyn Fn()>| {
+        let action = gio::SimpleAction::new(name, None);
+        action.connect_activate(move |_, _| f());
+        group.add_action(&action);
+    };
+    let (a, url) = (app.clone(), card.url.clone());
+    add("open", Box::new(move || a.open_url(&url)));
+    let (a, url) = (app.clone(), card.url.clone());
+    add("copy", Box::new(move || a.copy_text(&url)));
+    let (a, md) = (app.clone(), card.markdown_link());
+    add("copy-markdown", Box::new(move || a.copy_text(&md)));
+    btn.insert_action_group("card", Some(&group));
+
+    let menu = gio::Menu::new();
+    menu.append(Some("_Open Link"), Some("card.open"));
+    menu.append(Some("Copy _Link Address"), Some("card.copy"));
+    menu.append(Some("Copy Link as _Markdown"), Some("card.copy-markdown"));
+
+    // The popover is made for each opening and removed after it closes
+    // (deferred, so the chosen action still finds the card's action group
+    // through its parent), so the button never has a leftover child.
+    let popup = move |btn: &gtk::Button, at: Option<(f64, f64)>| {
+        let pop = gtk::PopoverMenu::from_model(Some(&menu));
+        pop.set_parent(btn);
+        pop.set_has_arrow(false);
+        pop.set_halign(gtk::Align::Start);
+        if let Some((x, y)) = at {
+            let rect = gdk::Rectangle::new(x as i32, y as i32, 1, 1);
+            pop.set_pointing_to(Some(&rect));
+        }
+        pop.connect_closed(|pop| {
+            let pop = pop.clone();
+            glib::idle_add_local_once(move || pop.unparent());
+        });
+        pop.popup();
+    };
+    let popup = Rc::new(popup);
+
+    let click = gtk::GestureClick::new();
+    click.set_button(gdk::BUTTON_SECONDARY);
+    let p = popup.clone();
+    click.connect_pressed(move |g, _, x, y| {
+        g.set_state(gtk::EventSequenceState::Claimed);
+        if let Some(btn) = g.widget().and_downcast::<gtk::Button>() {
+            p(&btn, Some((x, y)));
+        }
+    });
+    btn.add_controller(click);
+
+    let long = gtk::GestureLongPress::new();
+    long.set_touch_only(true);
+    let p = popup.clone();
+    long.connect_pressed(move |g, x, y| {
+        g.set_state(gtk::EventSequenceState::Claimed);
+        if let Some(btn) = g.widget().and_downcast::<gtk::Button>() {
+            p(&btn, Some((x, y)));
+        }
+    });
+    btn.add_controller(long);
+
+    let keys = gtk::ShortcutController::new();
+    keys.add_shortcut(gtk::Shortcut::new(
+        gtk::ShortcutTrigger::parse_string("<Shift>F10|Menu"),
+        Some(gtk::CallbackAction::new(move |w, _| {
+            if let Some(btn) = w.downcast_ref::<gtk::Button>() {
+                popup(btn, None);
+            }
+            glib::Propagation::Stop
+        })),
+    ));
+    btn.add_controller(keys);
 }
 
 fn poll_widget(app: &Rc<App>, poll: Poll) -> gtk::Widget {

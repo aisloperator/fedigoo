@@ -15,7 +15,8 @@ No license is given.
 - Notifications, mentions and private conversations
 - Live updates over the streaming API, with an unread badge and a "new items" button
 - Posts: content warnings, sensitive-media covers, image viewer with alt text,
-  link cards, polls (with voting), threads with indented replies, translation
+  link cards (right-click to open the link or copy it, also as Markdown), polls
+  (with voting), threads with indented replies, translation
 - Actions: reply, boost, favourite, bookmark, edit, delete, delete & re-draft,
   pin, mute conversation, copy link or text, report
 - Composer: character counter using the instance limit, content warning,
