@@ -77,17 +77,18 @@ permissions.
 |-------------------|-------------|
 | Ctrl+N            | New post    |
 | F5 / Ctrl+R       | Refresh     |
-| Alt+Left / Esc    | Back        |
+| Alt+Left / Esc / Backspace | Back |
 | Ctrl+F            | Search      |
 | Ctrl+Enter        | Send post   |
 | Ctrl+Q            | Quit        |
 | PgDn / Space      | Page down   |
-| PgUp / Backspace / Shift+Space | Page up |
+| PgUp / Shift+Space | Page up |
 
 Paging lands on the start of a post where that doesn't skip anything, and
 pages through posts taller than the window. Paging up twice at the top of a
 feed checks for new posts; paging twice past either end of a thread checks
-for new replies. Space and Backspace still type in text fields.
+for new replies. Space and Backspace still type in text fields, and
+Backspace does nothing on a top-level page (there's nothing to go back to).
 
 In the image viewer:
 

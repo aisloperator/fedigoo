@@ -150,7 +150,7 @@ impl App {
 
         let header = gtk::HeaderBar::new();
         let back_btn = gtk::Button::from_icon_name("go-previous-symbolic");
-        back_btn.set_tooltip_text(Some("Back (Alt+Left)"));
+        back_btn.set_tooltip_text(Some("Back (Alt+Left, Backspace)"));
         back_btn.set_visible(false);
         let compose_btn = gtk::Button::from_icon_name("document-edit-symbolic");
         compose_btn.set_tooltip_text(Some("New post (Ctrl+N)"));
@@ -896,6 +896,11 @@ impl App {
         let w = tl.widget();
         let t = tl.clone();
         self.push(title, w, Some(tl), Some(Rc::new(move || t.reload())));
+    }
+
+    /// Whether there's a page to go back to (the Back button is showing).
+    pub fn can_go_back(&self) -> bool {
+        self.nav.borrow().len() > 1
     }
 
     pub fn pop(&self) {

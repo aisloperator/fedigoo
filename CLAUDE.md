@@ -111,7 +111,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Keyboard paging (`ui/paging.rs`): a capture-phase key controller on the main window
   pages the tallest mapped `ScrolledWindow` of the top page. Where it lands is the pure,
   tested `paging::page_target` (post rows from the tallest `ListBox`, measured against
-  the viewport's child). Text fields keep Space/Backspace. A focused button keeps Space
+  the viewport's child). Backspace there means Back (`App::pop`, if `can_go_back`), not
+  page up. Text fields keep Space/Backspace. A focused button keeps Space
   only if focus last moved by keyboard (navigation keys set it, any pointer press or touch
   clears it, via an `EventControllerLegacy`): after a click, focus sits on the clicked
   button or wherever GTK moved it, and GTK's `focus-visible` turns on with any key press,

@@ -1,8 +1,8 @@
 //! Keyboard paging through the posts of the current view: PgDn/Space down,
-//! PgUp/Backspace (or Shift+Space) up.  Pages land on post boundaries where
-//! that doesn't skip anything, scroll with a short animation, and paging
-//! twice past the top of a feed (or either end of a thread) checks for new
-//! posts or replies.
+//! PgUp/Shift+Space up.  Pages land on post boundaries where that doesn't
+//! skip anything, scroll with a short animation, and paging twice past the
+//! top of a feed (or either end of a thread) checks for new posts or
+//! replies.  Backspace goes back, like the Back button.
 
 use super::app::App;
 use super::pages::{ThreadFocus, ThreadView};
@@ -103,12 +103,17 @@ pub fn handle_key(app: &Rc<App>, key: Key, mods: ModifierType) -> bool {
     }
     let shift = mods.contains(ModifierType::SHIFT_MASK);
     let typing_key = matches!(key, Key::space | Key::BackSpace);
-    let dir = match key {
-        Key::Page_Down | Key::KP_Page_Down => 1,
-        Key::Page_Up | Key::KP_Page_Up => -1,
-        Key::space if shift => -1,
-        Key::space => 1,
-        Key::BackSpace => -1,
+    enum Action {
+        Page(i32),
+        /// Like the Back button (Alt+Left, Esc).
+        Back,
+    }
+    let action = match key {
+        Key::Page_Down | Key::KP_Page_Down => Action::Page(1),
+        Key::Page_Up | Key::KP_Page_Up => Action::Page(-1),
+        Key::space if shift => Action::Page(-1),
+        Key::space => Action::Page(1),
+        Key::BackSpace => Action::Back,
         _ => return false,
     };
     let focus = gtk::prelude::GtkWindowExt::focus(&app.window);
@@ -130,7 +135,15 @@ pub fn handle_key(app: &Rc<App>, key: Key, mods: ModifierType) -> bool {
             return false;
         }
     }
-    page(app, dir)
+    match action {
+        Action::Page(dir) => page(app, dir),
+        // Nothing to go back to on a top-level page: leave the key alone.
+        Action::Back if !app.can_go_back() => false,
+        Action::Back => {
+            app.pop();
+            true
+        }
+    }
 }
 
 /// Pages the current view; false if it has nothing to scroll.
