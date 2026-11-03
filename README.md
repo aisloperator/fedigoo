@@ -8,46 +8,6 @@ No license is given.
 
 <img src="screenshot.png" width="940" height="660" alt="FediGoo showing the Explore timeline: a sidebar of timelines on the left, and a post with four cat photos laid out beside each other.">
 
-## Building
-
-System packages (Debian/Ubuntu names):
-
-    sudo apt install pkgconf libgtk-4-dev libsoup-3.0-dev
-
-Then, with a stable Rust toolchain from rustup:
-
-    cargo build --release
-    ./target/release/fedigoo
-
-The only crate dependencies are the GTK bindings (`gtk4`) and the libsoup
-bindings (`soup3`) plus their own dependencies. JSON handling and the HTML
-conversion are built in. HTTPS uses libsoup and glib-networking.
-
-## Running
-
-    fedigoo            # GTK picks the backend (honours GDK_BACKEND)
-    fedigoo --x11      # force X11
-    fedigoo --wayland  # force Wayland
-
-## Installing
-
-    ./target/release/fedigoo --install
-
-This copies the executable to `~/.local/bin/fedigoo`, and adds a menu entry
-(`~/.local/share/applications/com.aisloperator.FediGoo.desktop`) and an icon
-(under `~/.local/share/icons/hicolor/`), so FediGoo shows up in your
-application menu and dock. `fedigoo --uninstall` removes those files and
-leaves your accounts and settings alone.
-
-Log in through the welcome screen. FediGoo opens your instance's
-authorisation page in the browser; paste the code it shows back into
-FediGoo.
-
-All local data (accounts, access tokens, OAuth client registrations,
-preferences) is in `$XDG_CONFIG_HOME/fedigoo/config.json`, normally
-`~/.config/fedigoo/config.json`. The file is created with owner-only
-permissions.
-
 ## Features
 
 - Multiple accounts, with OAuth login, switching and logout (which revokes the token)
@@ -98,6 +58,46 @@ In the image viewer:
 | Left / Backspace, or click its left 20% | Previous image |
 | Swipe or drag left / right             | Next / previous |
 | Esc / Ctrl+W                           | Close           |
+
+## Building
+
+System packages (Debian/Ubuntu names):
+
+    sudo apt install pkgconf libgtk-4-dev libsoup-3.0-dev
+
+Then, with a stable Rust toolchain from rustup:
+
+    cargo build --release
+    ./target/release/fedigoo
+
+The only crate dependencies are the GTK bindings (`gtk4`) and the libsoup
+bindings (`soup3`) plus their own dependencies. JSON handling and the HTML
+conversion are built in. HTTPS uses libsoup and glib-networking.
+
+## Running
+
+    fedigoo            # GTK picks the backend (honours GDK_BACKEND)
+    fedigoo --x11      # force X11
+    fedigoo --wayland  # force Wayland
+
+## Installing
+
+    ./target/release/fedigoo --install
+
+This copies the executable to `~/.local/bin/fedigoo`, and adds a menu entry
+(`~/.local/share/applications/com.aisloperator.FediGoo.desktop`) and an icon
+(under `~/.local/share/icons/hicolor/`), so FediGoo shows up in your
+application menu and dock. `fedigoo --uninstall` removes those files and
+leaves your accounts and settings alone.
+
+Log in through the welcome screen. FediGoo opens your instance's
+authorisation page in the browser; paste the code it shows back into
+FediGoo.
+
+All local data (accounts, access tokens, OAuth client registrations,
+preferences) is in `$XDG_CONFIG_HOME/fedigoo/config.json`, normally
+`~/.config/fedigoo/config.json`. The file is created with owner-only
+permissions.
 
 ## Tests
 
