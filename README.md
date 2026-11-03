@@ -111,7 +111,20 @@ drags, key shortcuts) in place of a web browser. Its docstring has the details.
 
 ## Code Dependencies
 
-This section is updated before each release.
+This section is updated before each release, from a build on the reference system:
+Debian 13 (trixie) on amd64 (x86_64), using Debian's own packages for GTK 4, libsoup 3
+and the other system libraries.
+
+How much of it is specific to the reference system differs by list:
+
+* **Direct crates** come from `Cargo.toml`, so they are the same everywhere.
+* **Indirect crates** come from the committed `Cargo.lock`, listed for an x86_64 Linux
+  build. A build from the same lock file uses the same crate versions on any system,
+  though another target may build a slightly different set of crates. A `cargo update`
+  can change the versions.
+* **Non-crate libraries** (both lists) are what the reference system's release binary
+  links to and loads. Another distribution, distribution version or architecture may have other
+  library versions or sonames, link a different set, or load other modules at run time.
 
 ### Direct Crate Dependencies
 
@@ -124,7 +137,7 @@ These are the dependencies in `Cargo.toml`, with their version requirements.
 ### Direct Non-Crate Dependencies
 
 These are the system libraries that the release binary links to directly, as reported
-by `objdump -p` on Debian 13 (amd64). Through the crate bindings, the app's code also
+by `objdump -p` on the reference system. Through the crate bindings, the app's code also
 calls Pango and GDK, which are loaded as part of GTK. Building also needs the
 `pkg-config` and `glib-compile-resources` tools and the GTK 4 and libsoup 3 development
 files (Debian: `pkgconf libgtk-4-dev libsoup-3.0-dev`).
@@ -211,7 +224,7 @@ and are not part of the binary.
 ### Indirect Non-Crate Dependencies
 
 These are the libraries loaded because of the direct ones above, as reported by `ldd`
-for the release binary on Debian 13 (amd64), plus modules that GLib and GTK load at run
+for the release binary on the reference system, plus modules that GLib and GTK load at run
 time, which `ldd` doesn't show. The exact set depends on how the distribution
 built GTK, GLib and libsoup, and on the desktop, so other systems may differ.
 

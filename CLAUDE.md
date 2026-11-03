@@ -184,7 +184,9 @@ button), or hiding a widget soon after it was clicked (the "new posts" pill), pr
 
 Update README's "Code Dependencies" section (keep its four subsections, the notes under
 each heading, and alphabetical bullet lists; crates as
-``* [`name`](https://crates.io/crates/name) `version` ``):
+``* [`name`](https://crates.io/crates/name) `version` ``). The lists come from a build
+on the reference system the section's introduction names (Debian 13 amd64); if the
+build ran somewhere else, update that introduction too.
 
 - Direct crates: the version strings in `Cargo.toml`.
 - Indirect crates: `cargo tree -e normal,build --prefix none --format "{p}" | sort -u`,
