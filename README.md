@@ -8,6 +8,8 @@ No license is given.
 
 <img src="screenshot.png" width="940" height="660" alt="FediGoo showing the Explore timeline: a sidebar of timelines on the left, and a post with four cat photos laid out beside each other.">
 
+<img src="screenshot2.png" width="1037" height="771" alt="FediGoo in a dark theme showing the Home timeline, with the sidebar shrunk to icons only and a &quot;2 new items&quot; button at the top. The first post has four photos of painted crow sculptures, one large on the left and three smaller ones beside it, each with an ALT badge for its description.">
+
 ## Features
 
 - Multiple accounts, with OAuth login, switching and logout (which revokes the token)
