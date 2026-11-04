@@ -9,6 +9,7 @@ use crate::util;
 use gtk::{gdk, gio, glib, pango, prelude::*};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Duration;
 
 pub enum Mode {
     New,
@@ -32,12 +33,17 @@ const DURATIONS: [(&str, i64); 8] = [
     ("7 days", 604800),
 ];
 
-/// An attachment in the composer: being uploaded, or uploaded with an id.
+/// How long posting or uploading runs before the composer says it's stalled.
+const STALL_AFTER: Duration = Duration::from_secs(15);
+
+/// An attachment in the composer: being uploaded (`task` is set), or uploaded
+/// with an id.
 struct Attachment {
     id: RefCell<Option<String>>,
     original_alt: RefCell<String>,
     alt: gtk::Entry,
     widget: gtk::Box,
+    task: RefCell<Option<glib::JoinHandle<()>>>,
 }
 
 struct Composer {
@@ -61,6 +67,33 @@ struct Composer {
     reply_to: Option<String>,
     edit_id: Option<String>,
     uploading: Cell<u32>,
+    /// Everything but the status row, which must stay usable during a post.
+    form: gtk::Box,
+    status_row: gtk::Box,
+    status_spinner: gtk::Spinner,
+    status_label: gtk::Label,
+    status_cancel: gtk::Button,
+    /// The post being sent. Aborting it cancels the request.
+    post_task: RefCell<Option<glib::JoinHandle<()>>>,
+    /// The result of the last attempt or upload: (text, is it an error).
+    message: RefCell<Option<(String, bool)>>,
+    stalled: Cell<bool>,
+    stall_watch: Cell<u32>,
+    /// The body and key of the last attempt: a retry of the same body
+    /// reuses the key, so a post that did get through isn't published twice.
+    attempt: RefCell<Option<(String, String)>>,
+}
+
+/// What the status row says while the composer is waiting for the server.
+fn busy_text(posting: bool, editing: bool, uploads: u32, stalled: bool, host: &str) -> String {
+    match (posting, stalled) {
+        (true, true) => format!("Still waiting for {host}. It may be slow or down."),
+        (true, false) if editing => "Saving…".into(),
+        (true, false) => "Posting…".into(),
+        (false, true) => format!("Still uploading to {host}. It may be slow or down."),
+        (false, false) if uploads == 1 => "Uploading 1 file…".into(),
+        (false, false) => format!("Uploading {uploads} files…"),
+    }
 }
 
 pub fn open(app: &Rc<App>, mode: Mode) {
@@ -79,12 +112,32 @@ pub fn open(app: &Rc<App>, mode: Mode) {
         .default_width(620)
         .default_height(480)
         .build();
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    win.set_child(Some(&outer));
     let vb = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    vb.set_vexpand(true);
     vb.set_margin_top(12);
     vb.set_margin_bottom(12);
     vb.set_margin_start(12);
     vb.set_margin_end(12);
-    win.set_child(Some(&vb));
+    outer.append(&vb);
+
+    let status_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    status_row.set_margin_bottom(12);
+    status_row.set_margin_start(12);
+    status_row.set_margin_end(12);
+    status_row.set_visible(false);
+    let status_spinner = gtk::Spinner::new();
+    let status_label = gtk::Label::new(None);
+    status_label.set_xalign(0.0);
+    status_label.set_hexpand(true);
+    status_label.set_wrap(true);
+    status_label.set_wrap_mode(pango::WrapMode::WordChar);
+    let status_cancel = gtk::Button::with_label("Cancel");
+    status_row.append(&status_spinner);
+    status_row.append(&status_label);
+    status_row.append(&status_cancel);
+    outer.append(&status_row);
 
     if let Mode::Reply(s) = &mode {
         let l = gtk::Label::new(None);
@@ -219,6 +272,16 @@ pub fn open(app: &Rc<App>, mode: Mode) {
             _ => None,
         },
         uploading: Cell::new(0),
+        form: vb,
+        status_row,
+        status_spinner,
+        status_label,
+        status_cancel,
+        post_task: RefCell::new(None),
+        message: RefCell::new(None),
+        stalled: Cell::new(false),
+        stall_watch: Cell::new(0),
+        attempt: RefCell::new(None),
     });
     c.set_visibility(&default_vis);
     c.sensitive
@@ -382,10 +445,22 @@ pub fn open(app: &Rc<App>, mode: Mode) {
     });
     // The window's handler owns the composer, so it lives as long as the
     // window does; the handlers are dropped when the window is destroyed.
+    // Closing during a post only cancels it, keeping the text to retry or
+    // copy; closing during uploads stops them.
     let keep = c.clone();
     win.connect_close_request(move |_| {
-        let _ = &keep;
+        if keep.post_task.borrow().is_some() {
+            keep.cancel();
+            return glib::Propagation::Stop;
+        }
+        keep.cancel_uploads();
         glib::Propagation::Proceed
+    });
+    let w = Rc::downgrade(&c);
+    c.status_cancel.connect_clicked(move |_| {
+        if let Some(c) = w.upgrade() {
+            c.cancel();
+        }
     });
 
     c.update_counter();
@@ -537,20 +612,121 @@ impl Composer {
             original_alt: RefCell::new(alt_text.to_string()),
             alt,
             widget: widget.clone(),
+            task: RefCell::new(None),
         });
         let w = Rc::downgrade(self);
         let aw = Rc::downgrade(&att);
         rm.connect_clicked(move |_| {
             if let (Some(c), Some(a)) = (w.upgrade(), aw.upgrade()) {
-                c.attachments.borrow_mut().retain(|x| !Rc::ptr_eq(x, &a));
-                c.attach_box.remove(&a.widget);
-                c.sync_attach_ui();
+                c.remove_attachment(&a);
             }
         });
         self.attach_box.append(&widget);
         self.attachments.borrow_mut().push(att.clone());
         self.sync_attach_ui();
         att
+    }
+
+    /// Takes an attachment out of the post, stopping its upload if any.
+    fn remove_attachment(&self, att: &Rc<Attachment>) {
+        if let Some(task) = att.task.take() {
+            task.abort();
+            self.uploading.set(self.uploading.get() - 1);
+        }
+        self.attachments
+            .borrow_mut()
+            .retain(|x| !Rc::ptr_eq(x, att));
+        self.attach_box.remove(&att.widget);
+        self.sync_attach_ui();
+        self.update_counter();
+        self.sync_status();
+    }
+
+    fn cancel_uploads(&self) {
+        let uploading: Vec<Rc<Attachment>> = self
+            .attachments
+            .borrow()
+            .iter()
+            .filter(|a| a.task.borrow().is_some())
+            .cloned()
+            .collect();
+        for att in &uploading {
+            self.remove_attachment(att);
+        }
+    }
+
+    /// Stops what the composer is waiting for. The composer's content stays.
+    fn cancel(&self) {
+        let Some(task) = self.post_task.take() else {
+            self.cancel_uploads();
+            return;
+        };
+        task.abort();
+        let text = if self.edit_id.is_some() {
+            "Cancelled. The server may already have received the change."
+        } else {
+            "Cancelled. If the server already received this post, it will appear \
+             anyway. Posting it again unchanged won't make a copy."
+        };
+        *self.message.borrow_mut() = Some((text.to_string(), false));
+        self.finish_post();
+    }
+
+    /// Hands the composer back to the user after a post that didn't go through.
+    fn finish_post(&self) {
+        self.form.set_sensitive(true);
+        self.update_counter();
+        self.sync_status();
+        self.text.grab_focus();
+    }
+
+    /// Restarts the time until waiting counts as stalled.
+    fn watch_for_stall(self: &Rc<Self>) {
+        let watch = self.stall_watch.get().wrapping_add(1);
+        self.stall_watch.set(watch);
+        self.stalled.set(false);
+        let w = Rc::downgrade(self);
+        glib::timeout_add_local_once(STALL_AFTER, move || {
+            if let Some(c) = w.upgrade()
+                && c.stall_watch.get() == watch
+            {
+                c.stalled.set(true);
+                c.sync_status();
+            }
+        });
+    }
+
+    /// Shows what's in progress, or else the last result, under the form.
+    fn sync_status(&self) {
+        let posting = self.post_task.borrow().is_some();
+        let uploads = self.uploading.get();
+        let busy = posting || uploads > 0;
+        let (text, is_error) = if busy {
+            let host = self.app.api().host;
+            let text = busy_text(
+                posting,
+                self.edit_id.is_some(),
+                uploads,
+                self.stalled.get(),
+                &host,
+            );
+            (Some(text), false)
+        } else {
+            match self.message.borrow().clone() {
+                Some((text, is_error)) => (Some(text), is_error),
+                None => (None, false),
+            }
+        };
+        self.status_row.set_visible(text.is_some());
+        self.status_label.set_text(text.as_deref().unwrap_or(""));
+        if is_error {
+            self.status_label.add_css_class("error");
+        } else {
+            self.status_label.remove_css_class("error");
+        }
+        self.status_spinner.set_visible(busy);
+        self.status_spinner.set_spinning(busy);
+        self.status_cancel.set_visible(busy);
     }
 
     fn sync_attach_ui(&self) {
@@ -640,28 +816,34 @@ impl Composer {
             s.start();
         }
         self.uploading.set(self.uploading.get() + 1);
+        *self.message.borrow_mut() = None;
         self.update_counter();
         let api = self.app.api();
         let w = Rc::downgrade(self);
-        glib::spawn_future_local(async move {
+        let tile = att.clone();
+        let task = glib::spawn_future_local(async move {
             let res = api.upload_media(&name, &mime, &bytes, "").await;
             if let Some(s) = &spinner {
                 s.stop();
                 s.set_visible(false);
             }
             let Some(c) = w.upgrade() else { return };
+            tile.task.take();
             c.uploading.set(c.uploading.get() - 1);
             match res {
-                Ok(v) => *att.id.borrow_mut() = Some(v["id"].str().to_string()),
+                Ok(v) => *tile.id.borrow_mut() = Some(v["id"].str().to_string()),
                 Err(e) => {
-                    c.app.toast(&format!("Upload failed: {e}"));
-                    c.attachments.borrow_mut().retain(|x| !Rc::ptr_eq(x, &att));
-                    c.attach_box.remove(&att.widget);
-                    c.sync_attach_ui();
+                    *c.message.borrow_mut() = Some((format!("Couldn't upload {name}: {e}"), true));
+                    c.remove_attachment(&tile);
                 }
             }
+            c.watch_for_stall();
             c.update_counter();
+            c.sync_status();
         });
+        *att.task.borrow_mut() = Some(task);
+        self.watch_for_stall();
+        self.sync_status();
     }
 
     fn is_dirty(&self) -> bool {
@@ -669,6 +851,10 @@ impl Composer {
     }
 
     fn close_asking(self: &Rc<Self>) {
+        if self.post_task.borrow().is_some() {
+            self.cancel();
+            return;
+        }
         if !self.is_dirty() {
             self.win.close();
             return;
@@ -688,7 +874,7 @@ impl Composer {
     }
 
     fn submit(self: &Rc<Self>) {
-        if !self.post_btn.is_sensitive() {
+        if !self.post_btn.is_sensitive() || self.post_task.borrow().is_some() {
             return;
         }
         let text = self.text();
@@ -783,12 +969,20 @@ impl Composer {
             );
         }
 
+        let body_text = body.to_string();
+        let key = match &*self.attempt.borrow() {
+            Some((last, key)) if *last == body_text => key.clone(),
+            _ => glib::uuid_string_random().to_string(),
+        };
+        *self.attempt.borrow_mut() = Some((body_text, key.clone()));
+
+        *self.message.borrow_mut() = None;
         self.post_btn.set_sensitive(false);
-        self.win.set_sensitive(false);
+        self.form.set_sensitive(false);
         let api = self.app.api();
         let edit_id = self.edit_id.clone();
         let w = Rc::downgrade(self);
-        glib::spawn_future_local(async move {
+        let task = glib::spawn_future_local(async move {
             let res = async {
                 if edit_id.is_none() {
                     for (id, alt) in &alt_updates {
@@ -801,11 +995,12 @@ impl Composer {
                 }
                 match &edit_id {
                     Some(id) => api.put(&format!("/api/v1/statuses/{id}"), body).await,
-                    None => api.post("/api/v1/statuses", body).await,
+                    None => api.post_status(body, &key).await,
                 }
             }
             .await;
             let Some(c) = w.upgrade() else { return };
+            c.post_task.take();
             match res {
                 Ok(v) => {
                     c.app.status_posted(&v);
@@ -817,11 +1012,36 @@ impl Composer {
                     c.win.close();
                 }
                 Err(e) => {
-                    c.app.toast(&e);
-                    c.win.set_sensitive(true);
-                    c.update_counter();
+                    let verb = if edit_id.is_some() { "save" } else { "post" };
+                    *c.message.borrow_mut() = Some((format!("Couldn't {verb}: {e}"), true));
+                    c.finish_post();
                 }
             }
         });
+        *self.post_task.borrow_mut() = Some(task);
+        self.watch_for_stall();
+        self.sync_status();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::busy_text;
+
+    #[test]
+    fn busy_texts() {
+        let h = "mastodon.social";
+        assert_eq!(busy_text(true, false, 0, false, h), "Posting…");
+        assert_eq!(busy_text(true, true, 0, false, h), "Saving…");
+        assert_eq!(busy_text(false, false, 1, false, h), "Uploading 1 file…");
+        assert_eq!(busy_text(false, false, 3, false, h), "Uploading 3 files…");
+        assert_eq!(
+            busy_text(true, false, 0, true, h),
+            "Still waiting for mastodon.social. It may be slow or down."
+        );
+        assert_eq!(
+            busy_text(false, false, 2, true, h),
+            "Still uploading to mastodon.social. It may be slow or down."
+        );
     }
 }

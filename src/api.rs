@@ -116,6 +116,21 @@ impl Api {
         query: &[(&str, &str)],
         body: Body,
     ) -> Result<Response, String> {
+        self.request_keyed(method, path, query, body, None).await
+    }
+
+    /// `request` with an optional `Idempotency-Key` header.
+    ///
+    /// Dropping the returned future cancels the request (so
+    /// `JoinHandle::abort` on a task awaiting it does too).
+    async fn request_keyed(
+        &self,
+        method: &str,
+        path: &str,
+        query: &[(&str, &str)],
+        body: Body,
+        idempotency_key: Option<&str>,
+    ) -> Result<Response, String> {
         let mut url = self.url(path);
         if !query.is_empty() {
             url.push(if url.contains('?') { '&' } else { '?' });
@@ -156,9 +171,12 @@ impl Api {
             headers.append("Authorization", &format!("Bearer {t}"));
         }
         headers.append("Accept", "application/json");
-        if method == "POST" && path.ends_with("/statuses") {
-            // Lets the server de-duplicate if a post is retried.
-            headers.append("Idempotency-Key", &glib::uuid_string_random());
+        if let Some(key) = idempotency_key {
+            headers.append("Idempotency-Key", key);
+        }
+        if method != "GET" {
+            // Don't queue behind a screenful of image downloads.
+            msg.set_priority(soup::MessagePriority::High);
         }
         let bytes = session()
             .send_and_read_future(&msg, glib::Priority::DEFAULT)
@@ -198,6 +216,16 @@ impl Api {
             Body::Json(body)
         };
         Ok(self.request("POST", path, &[], body).await?.json)
+    }
+
+    /// Publishes a post. A retry of the same post must pass the same `key`:
+    /// the server then answers with the first attempt's post, if that one
+    /// got through, instead of publishing it twice.
+    pub async fn post_status(&self, body: Value, key: &str) -> Result<Value, String> {
+        let res = self
+            .request_keyed("POST", "/api/v1/statuses", &[], Body::Json(body), Some(key))
+            .await?;
+        Ok(res.json)
     }
 
     pub async fn put(&self, path: &str, body: Value) -> Result<Value, String> {

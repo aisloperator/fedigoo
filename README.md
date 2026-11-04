@@ -23,7 +23,8 @@ No license is given.
   pin, mute conversation, copy link or text, report
 - Composer: character counter using the instance limit, content warning,
   visibility, language, media upload (file picker or paste) with alt text,
-  polls, and Ctrl+Enter to send
+  polls, and Ctrl+Enter to send; if the server is slow or down, it shows that and
+  you can cancel or try again without losing the post
 - Profiles: bio, verified fields, follow or follow request, notify on new posts,
   hide boosts, mute, block, domain block, list membership, followers and following
 - Search for accounts, hashtags and posts (URLs from other servers are resolved)
