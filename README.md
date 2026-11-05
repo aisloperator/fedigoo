@@ -86,6 +86,13 @@ conversion are built in. HTTPS uses libsoup and glib-networking.
 
 ## Installing
 
+On Debian 13 (amd64), each [release](https://github.com/aisloperator/fedigoo/releases)
+has a `.deb` package. Download it, then install it with:
+
+    sudo apt install ./fedigoo_VERSION-1_amd64.deb
+
+From a build of your own:
+
     ./target/release/fedigoo --install
 
 This copies the executable to `~/.local/bin/fedigoo`, and adds a menu entry

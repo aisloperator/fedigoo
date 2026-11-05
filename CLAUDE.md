@@ -203,3 +203,19 @@ build ran somewhere else, update that introduction too.
 - Indirect non-crate libraries: `ldd target/release/fedigoo` minus the direct ones (and
   the vDSO/loader), plus the run-time-loaded modules already listed (TLS, dconf, image
   loaders, GL/Vulkan drivers).
+
+## After tagging a release
+
+Each tag has a GitHub Release with a `.deb` for the reference system:
+
+    tools/build-deb.sh vX.Y.Z <scratch>/deb
+    gh release create vX.Y.Z <scratch>/deb/fedigoo_X.Y.Z-1_amd64.deb --verify-tag \
+        --title "FediGoo X.Y.Z" --notes-file <notes>
+
+The script builds from a clean export of the tag with its `Cargo.lock`, never the working
+tree, and takes `Depends` from `dpkg-shlibdeps`. The notes are the tag's notes (with no
+`Co-Authored-By` line) plus a short "Debian package" section with the `apt install`
+command; see an earlier release. Check the package first: `dpkg-deb -I`, `apt-get install
+--simulate ./file.deb` (installs nothing), and run the unpacked binary on Broadway. To
+rebuild a release's package, raise `revision` in the script: don't replace a published
+file under the same name.
