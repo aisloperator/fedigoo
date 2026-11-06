@@ -1,6 +1,6 @@
 //! The main window, navigation, account handling and streaming.
 
-use super::{compose, fit, login, pages, paging, prefs, timeline::Timeline};
+use super::{anchor, compose, fit, login, pages, paging, prefs, timeline::Timeline};
 use crate::api::{self, Api};
 use crate::config::Config;
 use crate::json::Value;
@@ -308,12 +308,21 @@ impl App {
     }
 
     fn connect_signals(self: &Rc<Self>, gtk_app: &gtk::Application) {
-        // Media thumbnails are limited to about half the window height.
-        self.window.connect_realize(|w| {
-            if let Some(surface) = w.surface() {
-                fit::set_window_height(surface.height());
-                surface.connect_height_notify(|s| fit::set_window_height(s.height()));
-            }
+        let a = self.clone();
+        self.window.connect_realize(move |w| {
+            let Some(surface) = w.surface() else { return };
+            // Media thumbnails are limited to about half the window height.
+            fit::set_window_height(surface.height());
+            // A resize keeps the post at the top of the view.  The surface
+            // has its new size here, but the widgets don't yet.
+            let b = a.clone();
+            surface.connect_width_notify(move |_| b.hold_scroll_position());
+            let b = a.clone();
+            surface.connect_height_notify(move |s| {
+                b.hold_scroll_position();
+                fit::set_window_height(s.height());
+            });
+            surface.connect_layout(|_, _, _| anchor::restore());
         });
         let a = self.clone();
         self.back_btn.connect_clicked(move |_| a.pop());
@@ -914,6 +923,9 @@ impl App {
         if let Some(p) = removed {
             if let Some(top) = self.nav.borrow().last() {
                 self.stack.set_visible_child(&top.widget);
+                // It may have been hidden through a window resize; its widgets
+                // get the new size with the next layout.
+                anchor::capture(&top.widget);
             }
             self.stack.remove(&p.widget);
         }
@@ -959,6 +971,12 @@ impl App {
     }
 
     /// The page on top of the navigation stack and the controller it keeps.
+    fn hold_scroll_position(&self) {
+        if let Some((page, _)) = self.current_page() {
+            anchor::capture(&page);
+        }
+    }
+
     pub(super) fn current_page(&self) -> Option<(gtk::Widget, Option<Rc<dyn Any>>)> {
         self.nav
             .borrow()

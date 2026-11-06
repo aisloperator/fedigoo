@@ -40,6 +40,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.
 - `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
   request body is built by the pure, tested `model::filter_body`.
+- `src/ui/anchor.rs`: keeps the top post in place across resizes; `anchor_at` is pure and
+  tested.
 - `src/ui/status.rs`: post, notification and conversation widgets. `compose.rs`,
   `login.rs` (OAuth OOB code flow), `media.rs`, `prefs.rs`, `style.css`.
 - `data/`: app icon SVG and `fedigoo.gresource.xml`. `build.rs` runs
@@ -86,6 +88,12 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   widgets must be built through `status::build`/`status::notification` to get this.
 - Scroll to a row with `pages::scroll_to_row`, not `grab_focus` (which doesn't scroll
   here); it keeps tracking the row while heights above it are still settling.
+- Resizing keeps the post at the top of the view (`ui/anchor.rs`). `capture` runs from the
+  surface's width/height notify, when the widgets still have their old layout, and
+  `restore` from the surface's `layout` signal, so no frame paints at the wrong place
+  (a tick callback runs before layout, one frame late). `App::pop` captures too, for a
+  page that was hidden through a resize. Each resize starts afresh from the current
+  position: don't carry a place across resizes.
 - Light/dark follows the desktop via `ui/theme.rs` (XDG portal `color-scheme`, falling
   back to GNOME GSettings) mapped to `gtk-application-prefer-dark-theme`, so CSS colours
   must work on dark themes too.
@@ -150,6 +158,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display
+
+Real window resizes are easiest on X11: run under `Xvfb` with `GDK_BACKEND=x11
+GSK_RENDERER=cairo` and use `xdotool windowsize`. Keep a second `CARGO_TARGET_DIR` out of
+the scratchpad: `/tmp` is a small tmpfs.
 
 Run on GTK's Broadway backend with a throwaway config dir (never the user's real one):
 

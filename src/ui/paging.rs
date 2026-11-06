@@ -163,7 +163,8 @@ fn page(app: &Rc<App>, dir: i32) -> bool {
             .map(|anim| anim.to.get())
     });
     let value = value.unwrap_or(adj.value());
-    match page_target(&post_rows(&sw), value, adj.page_size(), adj.upper(), dir) {
+    let rows: Vec<(f64, f64)> = post_rows(&sw).iter().map(|r| (r.1, r.2)).collect();
+    match page_target(&rows, value, adj.page_size(), adj.upper(), dir) {
         Some(target) => {
             LAST_EDGE.with(|e| *e.borrow_mut() = None);
             animate(&sw, target);
@@ -174,7 +175,7 @@ fn page(app: &Rc<App>, dir: i32) -> bool {
 }
 
 /// The view's main scrolling area: the tallest one that's showing.
-fn main_scroller(root: &gtk::Widget) -> Option<gtk::ScrolledWindow> {
+pub(super) fn main_scroller(root: &gtk::Widget) -> Option<gtk::ScrolledWindow> {
     let mut best: Option<gtk::ScrolledWindow> = None;
     visit(root, &mut |w| {
         if let Some(sw) = w.downcast_ref::<gtk::ScrolledWindow>()
@@ -188,19 +189,20 @@ fn main_scroller(root: &gtk::Widget) -> Option<gtk::ScrolledWindow> {
     best
 }
 
-/// The (top, bottom) of each visible post row in the scroller's content.
-fn post_rows(sw: &gtk::ScrolledWindow) -> Vec<(f64, f64)> {
-    // Measure against the scrolled content, not the viewport around it,
-    // which shifts by the scroll value (see `pages::scroll_to_row`).
-    let Some(child) = sw.child() else {
+/// The scrolled content: this, not the viewport around it, is what to measure
+/// against, since the viewport shifts by the scroll value (see
+/// `pages::scroll_to_row`).
+pub(super) fn scrolled_content(sw: &gtk::ScrolledWindow) -> Option<gtk::Widget> {
+    match sw.child()?.downcast::<gtk::Viewport>() {
+        Ok(viewport) => viewport.child(),
+        Err(child) => Some(child),
+    }
+}
+
+/// Each visible post row, with its top and bottom in the scroller's content.
+pub(super) fn post_rows(sw: &gtk::ScrolledWindow) -> Vec<(gtk::ListBoxRow, f64, f64)> {
+    let Some(content) = scrolled_content(sw) else {
         return Vec::new();
-    };
-    let content = match child.downcast::<gtk::Viewport>() {
-        Ok(viewport) => match viewport.child() {
-            Some(c) => c,
-            None => return Vec::new(),
-        },
-        Err(child) => child,
     };
     // The posts are the rows of the tallest list in the view.
     let mut list: Option<gtk::ListBox> = None;
@@ -216,12 +218,12 @@ fn post_rows(sw: &gtk::ScrolledWindow) -> Vec<(f64, f64)> {
     let mut rows = Vec::new();
     let mut child = list.first_child();
     while let Some(row) = child {
-        if row.is::<gtk::ListBoxRow>()
+        if let Some(r) = row.downcast_ref::<gtk::ListBoxRow>()
             && row.is_visible()
             && row.height() > 0
             && let Some(b) = row.compute_bounds(&content)
         {
-            rows.push((b.y() as f64, (b.y() + b.height()) as f64));
+            rows.push((r.clone(), b.y() as f64, (b.y() + b.height()) as f64));
         }
         child = row.next_sibling();
     }
