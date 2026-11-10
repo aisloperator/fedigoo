@@ -197,7 +197,11 @@ button), or hiding a widget soon after it was clicked (the "new posts" pill), pr
 
 - Branch `main`; remote `origin` is `git@github.com:aisloperator/fedigoo.git` (SSH,
   because HTTPS has no credentials in this environment).
-- Commit or push only when asked.
+- Commit or push only when asked. The exception is "solve issue #N": that includes a
+  commit with a detailed message, a push to `main`, and the write-up as a comment on
+  the issue. If it's probably done, close the issue too ("Fixed in <sha>."); the user may
+  reopen it. If it's partial or doubtful, leave it open and say why. Releases still
+  happen only when asked.
 - README must keep the AI Sloperator credit line and "No license is given." at the top.
 
 ## Before each release
