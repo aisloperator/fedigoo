@@ -38,6 +38,9 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `src/ui/timeline.rs`: generic paged list driven by a `Source` enum; it also takes live
   stream events.
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.
+  Search (`SearchPage`) has an All/Accounts/Hashtags/Posts selector (the `tabs` helper,
+  as Explore): All asks `/api/v2/search` for `SEARCH_ALL_LIMIT` of each kind, a single
+  kind pages by `offset` with "Load more"; the query is the pure, tested `search_params`.
 - `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
   request body is built by the pure, tested `model::filter_body`.
 - `src/ui/anchor.rs`: keeps the top post in place across resizes; `anchor_at` is pure and
@@ -160,7 +163,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 ## Visual testing without a display
 
 Real window resizes are easiest on X11: run under `Xvfb` with `GDK_BACKEND=x11
-GSK_RENDERER=cairo` and use `xdotool windowsize`. Keep a second `CARGO_TARGET_DIR` out of
+GSK_RENDERER=cairo` and use `xdotool windowsize`. X11 with `xdotool` clicks is also the
+fallback when Broadway drops input: once it lost every click after the first one on the
+Search page (with or without our resize code, after a fresh `gtk4-broadwayd`), while the
+same clicks worked on X11. Keep a second `CARGO_TARGET_DIR` out of
 the scratchpad: `/tmp` is a small tmpfs.
 
 Run on GTK's Broadway backend with a throwaway config dir (never the user's real one):

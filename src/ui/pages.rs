@@ -176,114 +176,343 @@ fn search(app: &Rc<App>, title: &str) {
     entry.set_margin_start(12);
     entry.set_margin_end(12);
     let results = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    vb.append(&entry);
-    vb.append(&results);
-    let a = app.clone();
-    entry.connect_activate(glib::clone!(
-        #[weak]
-        results,
-        move |e| {
-            let q = e.text().trim().to_string();
-            if q.is_empty() {
-                return;
+    let page = Rc::new_cyclic(|me: &Weak<SearchPage>| {
+        let me = me.clone();
+        let labels: Vec<&str> = SEARCH_KINDS.iter().map(|k| k.label()).collect();
+        let tabs = tabs(&labels, move |i| {
+            if let Some(p) = me.upgrade() {
+                p.kind.set(SEARCH_KINDS[i]);
+                p.run();
             }
-            while let Some(c) = results.first_child() {
-                results.remove(&c);
-            }
-            let spinner = gtk::Spinner::new();
-            spinner.start();
-            spinner.set_margin_top(20);
-            results.append(&spinner);
-            let api = a.api();
-            let a2 = a.clone();
-            let results = results.downgrade();
-            a.spawn(async move {
-                let res = api
-                    .get(
-                        "/api/v2/search",
-                        &[("q", &q), ("resolve", "true"), ("limit", "20")],
-                    )
-                    .await;
-                let Some(results) = results.upgrade() else {
-                    return Ok(());
-                };
-                results.remove(&spinner);
-                let v = res?;
-                show_search_results(&a2, &results, &v);
-                Ok(())
-            });
+        });
+        tabs.set_margin_top(6);
+        SearchPage {
+            app: app.clone(),
+            results: results.clone(),
+            tabs,
+            kind: std::cell::Cell::new(SearchKind::All),
+            query: RefCell::new(String::new()),
+            generation: std::cell::Cell::new(0),
         }
-    ));
-    let page = column(&vb);
-    let e = entry.clone();
-    app.push(title, page, None, None);
-    e.grab_focus();
+    });
+    vb.append(&entry);
+    vb.append(&page.tabs);
+    vb.append(&results);
+    // The entry and the tabs (children of the page) hold the SearchPage, which
+    // holds only the results box: no cycle.
+    let p = page.clone();
+    entry.connect_activate(move |e| {
+        *p.query.borrow_mut() = e.text().trim().to_string();
+        p.run();
+    });
+    app.push(title, column(&vb), None, None);
+    entry.grab_focus();
 }
 
-fn section_label(text: &str) -> gtk::Label {
+/// How many results of each kind the All view shows.
+const SEARCH_ALL_LIMIT: usize = 5;
+/// Results per request in the view of one kind (the API allows up to 40).
+const SEARCH_PAGE: usize = 40;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SearchKind {
+    All,
+    Accounts,
+    Hashtags,
+    Posts,
+}
+
+/// The Search page's selector, in order; the first is the default.
+const SEARCH_KINDS: [SearchKind; 4] = [
+    SearchKind::All,
+    SearchKind::Accounts,
+    SearchKind::Hashtags,
+    SearchKind::Posts,
+];
+
+impl SearchKind {
+    fn label(self) -> &'static str {
+        match self {
+            SearchKind::All => "All",
+            SearchKind::Accounts => "Accounts",
+            SearchKind::Hashtags => "Hashtags",
+            SearchKind::Posts => "Posts",
+        }
+    }
+
+    /// The API's `type` for it, which is also the key of its results.
+    fn api_type(self) -> Option<&'static str> {
+        match self {
+            SearchKind::All => None,
+            SearchKind::Accounts => Some("accounts"),
+            SearchKind::Hashtags => Some("hashtags"),
+            SearchKind::Posts => Some("statuses"),
+        }
+    }
+}
+
+/// The `/api/v2/search` query for `q` in the view of `kind`, from result
+/// `offset`.  All asks for a few of each kind; one kind asks for a page of
+/// it.  URLs and remote accounts are resolved on the first page only.
+fn search_params(q: &str, kind: SearchKind, offset: usize) -> Vec<(String, String)> {
+    let mut p = vec![("q".to_string(), q.to_string())];
+    if offset == 0 {
+        p.push(("resolve".into(), "true".into()));
+    }
+    match kind.api_type() {
+        None => p.push(("limit".into(), SEARCH_ALL_LIMIT.to_string())),
+        Some(t) => {
+            p.push(("type".into(), t.into()));
+            p.push(("limit".into(), SEARCH_PAGE.to_string()));
+            if offset > 0 {
+                p.push(("offset".into(), offset.to_string()));
+            }
+        }
+    }
+    p
+}
+
+struct SearchPage {
+    app: Rc<App>,
+    results: gtk::Box,
+    tabs: gtk::Box,
+    kind: std::cell::Cell<SearchKind>,
+    query: RefCell<String>,
+    /// Bumped by each new search, so a late answer to an old one is dropped.
+    generation: std::cell::Cell<u32>,
+}
+
+/// Rows of results, with what activating each one does.
+type Acts = Rc<RefCell<Vec<Rc<dyn Fn()>>>>;
+
+impl SearchPage {
+    /// Searches for the query in the selected view, replacing the results.
+    fn run(self: &Rc<Self>) {
+        let q = self.query.borrow().clone();
+        if q.is_empty() {
+            return;
+        }
+        let generation = self.generation.get().wrapping_add(1);
+        self.generation.set(generation);
+        while let Some(c) = self.results.first_child() {
+            self.results.remove(&c);
+        }
+        let spinner = gtk::Spinner::new();
+        spinner.start();
+        spinner.set_margin_top(20);
+        self.results.append(&spinner);
+        let kind = self.kind.get();
+        let api = self.app.api();
+        let me = Rc::downgrade(self);
+        glib::spawn_future_local(async move {
+            let params = search_params(&q, kind, 0);
+            let res = api.get("/api/v2/search", &query_refs(&params)).await;
+            let Some(p) = me.upgrade() else { return };
+            if p.generation.get() != generation {
+                return;
+            }
+            p.results.remove(&spinner);
+            match res {
+                Ok(v) if kind == SearchKind::All => p.show_all(&v),
+                Ok(v) => p.show_kind(kind, &v),
+                Err(e) => p.results.append(&note(&format!("Could not search: {e}"))),
+            }
+        });
+    }
+
+    /// A few results of each kind, under headings, each with "Show all" if
+    /// there may be more.
+    fn show_all(self: &Rc<Self>, v: &Value) {
+        let mut any = false;
+        for (i, kind) in SEARCH_KINDS.iter().enumerate().skip(1) {
+            let items = v[kind.api_type().unwrap_or_default()].arr();
+            let items = &items[..items.len().min(SEARCH_ALL_LIMIT)];
+            if items.is_empty() {
+                continue;
+            }
+            any = true;
+            // The row takes the heading's margins, so that the label and
+            // the button centre on each other.
+            let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+            head.add_css_class("section");
+            let label = gtk::Label::new(Some(kind.label()));
+            label.add_css_class("heading");
+            label.set_xalign(0.0);
+            label.set_hexpand(true);
+            head.append(&label);
+            if items.len() >= SEARCH_ALL_LIMIT {
+                let more = gtk::Button::with_label("Show all");
+                more.add_css_class("flat");
+                more.set_tooltip_text(Some(&format!("Show only {}", kind.label().to_lowercase())));
+                let tabs = self.tabs.downgrade();
+                more.connect_clicked(move |_| {
+                    // On idle: switching views removes this button, and
+                    // removing it while its click is still being handled
+                    // upsets GTK's tracking of the pressed widget.
+                    let tabs = tabs.clone();
+                    glib::idle_add_local_once(move || {
+                        if let Some(t) = tabs.upgrade().and_then(|t| nth_child(&t, i))
+                            && let Ok(t) = t.downcast::<gtk::ToggleButton>()
+                        {
+                            t.set_active(true);
+                        }
+                    });
+                });
+                head.append(&more);
+            }
+            self.results.append(&head);
+            let (lb, acts) = result_list();
+            append_results(&self.app, *kind, &lb, &acts, items);
+            self.results.append(&lb);
+        }
+        if !any {
+            self.results.append(&note("No results."));
+        }
+    }
+
+    /// A page of results of one kind, with "Load more" if there may be more.
+    fn show_kind(self: &Rc<Self>, kind: SearchKind, v: &Value) {
+        let items = v[kind.api_type().unwrap_or_default()].arr();
+        if items.is_empty() {
+            self.results
+                .append(&note(&format!("No {} found.", kind.label().to_lowercase())));
+            return;
+        }
+        let (lb, acts) = result_list();
+        append_results(&self.app, kind, &lb, &acts, items);
+        self.results.append(&lb);
+        if items.len() >= SEARCH_PAGE {
+            let more = gtk::Button::with_label("Load more");
+            more.set_halign(gtk::Align::Center);
+            more.set_margin_top(12);
+            more.set_margin_bottom(24);
+            let me = Rc::downgrade(self);
+            let lb = lb.downgrade();
+            more.connect_clicked(move |b| {
+                if let (Some(p), Some(lb)) = (me.upgrade(), lb.upgrade()) {
+                    p.load_more(kind, &lb, &acts, b);
+                }
+            });
+            self.results.append(&more);
+        }
+    }
+
+    fn load_more(
+        self: &Rc<Self>,
+        kind: SearchKind,
+        lb: &gtk::ListBox,
+        acts: &Acts,
+        btn: &gtk::Button,
+    ) {
+        let q = self.query.borrow().clone();
+        let generation = self.generation.get();
+        let offset = acts.borrow().len();
+        btn.set_sensitive(false);
+        btn.set_label("Loading…");
+        let api = self.app.api();
+        let me = Rc::downgrade(self);
+        let (lb, acts, btn) = (lb.downgrade(), acts.clone(), btn.downgrade());
+        glib::spawn_future_local(async move {
+            let params = search_params(&q, kind, offset);
+            let res = api.get("/api/v2/search", &query_refs(&params)).await;
+            let (Some(p), Some(lb), Some(btn)) = (me.upgrade(), lb.upgrade(), btn.upgrade()) else {
+                return;
+            };
+            if p.generation.get() != generation {
+                return;
+            }
+            btn.set_label("Load more");
+            btn.set_sensitive(true);
+            match res {
+                Ok(v) => {
+                    let items = v[kind.api_type().unwrap_or_default()].arr();
+                    append_results(&p.app, kind, &lb, &acts, items);
+                    if items.len() < SEARCH_PAGE {
+                        p.results.remove(&btn);
+                    }
+                }
+                Err(e) => p.app.toast(&e),
+            }
+        });
+    }
+}
+
+fn query_refs(params: &[(String, String)]) -> Vec<(&str, &str)> {
+    params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect()
+}
+
+fn nth_child(w: &impl IsA<gtk::Widget>, n: usize) -> Option<gtk::Widget> {
+    let mut c = w.first_child();
+    for _ in 0..n {
+        c = c?.next_sibling();
+    }
+    c
+}
+
+fn note(text: &str) -> gtk::Label {
     let l = gtk::Label::new(Some(text));
-    l.add_css_class("heading");
-    l.add_css_class("section");
-    l.set_xalign(0.0);
+    l.add_css_class("dim-label");
+    l.set_wrap(true);
+    l.set_margin_top(20);
     l
 }
 
-fn show_search_results(app: &Rc<App>, results: &gtk::Box, v: &Value) {
-    let mut any = false;
-    let list = |items: &[Value], title: &str, f: &dyn Fn(&Value) -> (gtk::Widget, Rc<dyn Fn()>)| {
-        if items.is_empty() {
-            return false;
+fn result_list() -> (gtk::ListBox, Acts) {
+    let lb = gtk::ListBox::new();
+    lb.set_selection_mode(gtk::SelectionMode::None);
+    lb.add_css_class("timeline");
+    let acts: Acts = Rc::default();
+    let a = acts.clone();
+    lb.connect_row_activated(move |_, row| {
+        let f = a.borrow().get(row.index() as usize).cloned();
+        if let Some(f) = f {
+            f();
         }
-        results.append(&section_label(title));
-        let lb = gtk::ListBox::new();
-        lb.set_selection_mode(gtk::SelectionMode::None);
-        lb.add_css_class("timeline");
-        let mut acts = Vec::new();
-        for item in items {
-            let (w, act) = f(item);
-            lb.append(&w);
-            acts.push(act);
-        }
-        lb.connect_row_activated(move |_, row| {
-            if let Some(f) = acts.get(row.index() as usize) {
-                f();
+    });
+    (lb, acts)
+}
+
+/// Adds a row to `lb` for each search result of `kind`.
+fn append_results(
+    app: &Rc<App>,
+    kind: SearchKind,
+    lb: &gtk::ListBox,
+    acts: &Acts,
+    items: &[Value],
+) {
+    for item in items {
+        let a = app.clone();
+        let (w, act): (gtk::Widget, Rc<dyn Fn()>) = match kind {
+            SearchKind::Accounts => {
+                let acc = Account::from_json(item);
+                let acc2 = acc.clone();
+                (
+                    account::row(app, &acc).upcast(),
+                    Rc::new(move || open_profile(&a, acc2.clone())),
+                )
             }
-        });
-        results.append(&lb);
-        true
-    };
-    any |= list(v["accounts"].arr(), "Accounts", &|item| {
-        let acc = Account::from_json(item);
-        let a = app.clone();
-        let acc2 = acc.clone();
-        (
-            account::row(app, &acc).upcast(),
-            Rc::new(move || open_profile(&a, acc2.clone())),
-        )
-    });
-    any |= list(v["hashtags"].arr(), "Hashtags", &|item| {
-        let tag = Tag::from_json(item);
-        let a = app.clone();
-        let name = tag.name.clone();
-        (
-            account::tag_row(&tag).upcast(),
-            Rc::new(move || open_hashtag(&a, &name)),
-        )
-    });
-    any |= list(v["statuses"].arr(), "Posts", &|item| {
-        let s = Status::from_json(item);
-        let a = app.clone();
-        let s2 = s.clone();
-        (
-            status::build(app, s, false),
-            Rc::new(move || open_thread(&a, &s2)),
-        )
-    });
-    if !any {
-        let l = gtk::Label::new(Some("No results."));
-        l.add_css_class("dim-label");
-        l.set_margin_top(20);
-        results.append(&l);
+            SearchKind::Hashtags => {
+                let tag = Tag::from_json(item);
+                let name = tag.name.clone();
+                (
+                    account::tag_row(&tag).upcast(),
+                    Rc::new(move || open_hashtag(&a, &name)),
+                )
+            }
+            SearchKind::Posts | SearchKind::All => {
+                let s = Status::from_json(item);
+                let s2 = s.clone();
+                (
+                    status::build(app, s, false),
+                    Rc::new(move || open_thread(&a, &s2)),
+                )
+            }
+        };
+        lb.append(&w);
+        acts.borrow_mut().push(act);
     }
 }
 
@@ -1530,4 +1759,42 @@ fn upload_profile_image(app: &Rc<App>, field: &'static str, parent: Option<gtk::
         });
         Ok(())
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(q: &str, kind: SearchKind, offset: usize) -> Vec<String> {
+        search_params(q, kind, offset)
+            .into_iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect()
+    }
+
+    #[test]
+    fn search_all_asks_for_a_few_of_each_kind() {
+        assert_eq!(
+            params("cats", SearchKind::All, 0),
+            ["q=cats", "resolve=true", "limit=5"]
+        );
+    }
+
+    #[test]
+    fn search_one_kind_pages_by_offset() {
+        assert_eq!(
+            params("cats", SearchKind::Posts, 0),
+            ["q=cats", "resolve=true", "type=statuses", "limit=40"]
+        );
+        assert_eq!(
+            params("cats", SearchKind::Accounts, 40),
+            ["q=cats", "type=accounts", "limit=40", "offset=40"]
+        );
+        assert_eq!(SearchKind::Hashtags.api_type(), Some("hashtags"));
+    }
+
+    #[test]
+    fn search_selector_starts_with_all() {
+        assert_eq!(SEARCH_KINDS[0], SearchKind::All);
+    }
 }

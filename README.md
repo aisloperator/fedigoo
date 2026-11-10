@@ -27,7 +27,8 @@ No license is given.
   you can cancel or try again without losing the post
 - Profiles: bio, verified fields, follow or follow request, notify on new posts,
   hide boosts, mute, block, domain block, list membership, followers and following
-- Search for accounts, hashtags and posts (URLs from other servers are resolved)
+- Search for accounts, hashtags and posts (URLs from other servers are resolved), with a
+  selector like Explore's: All shows a few of each kind, and each kind has its own view
 - Explore (trending posts, hashtags and news), followed hashtags, follow requests,
   list management, mutes and blocks, profile editing (including avatar and header)
 - Keyword and hashtag filters: view, add, edit and delete them; matching posts are
