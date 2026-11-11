@@ -12,7 +12,8 @@ No license is given.
 
 ## Features
 
-- Multiple accounts, with OAuth login, switching and logout (which revokes the token)
+- Multiple accounts, with OAuth login, switching and logout (which revokes the token),
+  from the current account's avatar in the header bar
 - Timelines: home, local, federated, hashtags, lists, trending posts, bookmarks and favourites
 - Notifications, mentions and private conversations
 - Live updates over the streaming API, with an unread badge and a "new items" button

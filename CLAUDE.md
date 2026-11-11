@@ -35,7 +35,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   `Status::shown()` gives the boosted status for boosts.
 - `src/ui/app.rs`: `App` (one `Rc<App>` for the process): window, sidebar `Root`s,
   navigation stack (`push`/`push_timeline`/`pop`), toasts, account switching,
-  streaming WebSocket, link routing (`activate_link`).
+  streaming WebSocket, link routing (`activate_link`). The header bar has the account
+  menu (a `MenuButton` showing the current avatar: accounts, add, log out) left of New
+  post, and the main menu at the right; `rebuild_account_menu` rebuilds both whenever
+  accounts change.
 - `src/ui/timeline.rs`: generic paged list driven by a `Source` enum; it also takes live
   stream events.
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.

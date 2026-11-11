@@ -111,7 +111,11 @@ pub struct App {
     /// Switches the sidebar between icons with labels and icons only.
     side_toggle: gtk::Button,
     unread: Cell<u32>,
+    /// The current account's avatar: switch, add and log out of accounts.
     account_btn: gtk::MenuButton,
+    account_img: gtk::Image,
+    /// The main ("hamburger") menu: profile, preferences, help.
+    menu_btn: gtk::MenuButton,
     toast: gtk::Revealer,
     toast_label: gtk::Label,
     live: RefCell<Vec<std::rc::Weak<Timeline>>>,
@@ -156,7 +160,15 @@ impl App {
         compose_btn.set_tooltip_text(Some("New post (Ctrl+N)"));
         let refresh_btn = gtk::Button::from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text(Some("Refresh (F5)"));
+        // The current account's avatar, as a menu of accounts.
+        let account_img = gtk::Image::new();
+        account_img.set_pixel_size(24);
+        account_img.add_css_class("avatar");
+        let account_btn = gtk::MenuButton::new();
+        account_btn.set_child(Some(&account_img));
+        account_btn.add_css_class("account-button");
         header.pack_start(&back_btn);
+        header.pack_start(&account_btn);
         header.pack_start(&compose_btn);
         header.pack_start(&refresh_btn);
 
@@ -171,10 +183,10 @@ impl App {
         tbox.append(&subtitle);
         header.set_title_widget(Some(&tbox));
 
-        let account_btn = gtk::MenuButton::new();
-        account_btn.set_icon_name("open-menu-symbolic");
-        account_btn.set_tooltip_text(Some("Accounts and preferences"));
-        header.pack_end(&account_btn);
+        let menu_btn = gtk::MenuButton::new();
+        menu_btn.set_icon_name("open-menu-symbolic");
+        menu_btn.set_tooltip_text(Some("Main menu"));
+        header.pack_end(&menu_btn);
         window.set_titlebar(Some(&header));
 
         let sidebar = gtk::ListBox::new();
@@ -290,6 +302,8 @@ impl App {
             side_toggle,
             unread: Cell::new(0),
             account_btn,
+            account_img,
+            menu_btn,
             toast,
             toast_label,
             live: RefCell::new(Vec::new()),
@@ -743,15 +757,32 @@ impl App {
         self.toast(&format!("Logged out of {}", acc.full_acct()));
     }
 
+    /// Rebuilds the account menu (on the avatar button) and the main menu,
+    /// after accounts change.
     pub fn rebuild_account_menu(self: &Rc<Self>) {
-        let pop = gtk::Popover::new();
-        let b = gtk::Box::new(gtk::Orientation::Vertical, 2);
-        b.set_margin_top(6);
-        b.set_margin_bottom(6);
         let (accounts, active) = {
             let c = self.config.borrow();
             (c.accounts.clone(), c.active)
         };
+        let current = accounts.get(active);
+
+        // The avatar button shows the current account.
+        match current {
+            Some(acc) if !acc.avatar.is_empty() => {
+                self.account_img.set_icon_name(None);
+                api::load_image(&self.account_img, &acc.avatar);
+            }
+            _ => self
+                .account_img
+                .set_icon_name(Some("avatar-default-symbolic")),
+        }
+        self.account_btn.set_tooltip_text(Some(&match current {
+            Some(acc) => format!("Accounts (current: @{})", acc.full_acct()),
+            None => "Accounts".to_string(),
+        }));
+
+        // Accounts: one row each, then add and log out.
+        let (pop, b) = menu_popover();
         for (i, acc) in accounts.iter().enumerate() {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let img = gtk::Image::new();
@@ -792,28 +823,11 @@ impl App {
         if !accounts.is_empty() {
             b.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         }
-        let item = |label: &str, f: Box<dyn Fn(&Rc<App>)>| {
-            let btn = gtk::Button::with_label(label);
-            btn.add_css_class("flat");
-            if let Some(l) = btn.child().and_downcast::<gtk::Label>() {
-                l.set_xalign(0.0);
-            }
-            let a = self.clone();
-            btn.connect_clicked(glib::clone!(
-                #[weak]
-                pop,
-                move |_| {
-                    pop.popdown();
-                    f(&a);
-                }
-            ));
-            b.append(&btn);
-            btn
-        };
-        item("Add account…", Box::new(login::open));
+        self.menu_item(&pop, &b, "Add account…", Box::new(login::open));
         if !accounts.is_empty() {
-            item("Edit profile…", Box::new(pages::edit_profile));
-            item(
+            self.menu_item(
+                &pop,
+                &b,
                 "Log out of this account",
                 Box::new(|a| {
                     let a = a.clone();
@@ -833,15 +847,25 @@ impl App {
                 }),
             );
         }
-        b.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-        item("Preferences…", Box::new(prefs::open));
-        item(
+        self.account_btn.set_popover(Some(&pop));
+
+        // The main menu.
+        let (pop, b) = menu_popover();
+        if !accounts.is_empty() {
+            self.menu_item(&pop, &b, "Edit profile…", Box::new(pages::edit_profile));
+        }
+        self.menu_item(&pop, &b, "Preferences…", Box::new(prefs::open));
+        self.menu_item(
+            &pop,
+            &b,
             "Keyboard shortcuts",
             Box::new(|a| {
                 a.toast("Ctrl+N new post · F5 refresh · Alt+Left/Esc back · Ctrl+F search · Ctrl+Enter send · Ctrl+Q quit")
             }),
         );
-        item(
+        self.menu_item(
+            &pop,
+            &b,
             "About FediGoo",
             Box::new(|a| {
                 gtk::AboutDialog::builder()
@@ -867,8 +891,32 @@ impl App {
                     .present();
             }),
         );
-        pop.set_child(Some(&b));
-        self.account_btn.set_popover(Some(&pop));
+        self.menu_btn.set_popover(Some(&pop));
+    }
+
+    /// Adds a plain menu entry to `b`, in `pop`: it closes the menu, then runs `f`.
+    fn menu_item(
+        self: &Rc<Self>,
+        pop: &gtk::Popover,
+        b: &gtk::Box,
+        label: &str,
+        f: Box<dyn Fn(&Rc<App>)>,
+    ) {
+        let btn = gtk::Button::with_label(label);
+        btn.add_css_class("flat");
+        if let Some(l) = btn.child().and_downcast::<gtk::Label>() {
+            l.set_xalign(0.0);
+        }
+        let a = self.clone();
+        btn.connect_clicked(glib::clone!(
+            #[weak]
+            pop,
+            move |_| {
+                pop.popdown();
+                f(&a);
+            }
+        ));
+        b.append(&btn);
     }
 
     // ----- Navigation -----
@@ -1263,4 +1311,14 @@ fn hashtag_from_url(uri: &str) -> Option<String> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| tag.to_string());
     (!tag.is_empty()).then_some(tag)
+}
+
+/// An empty menu: a popover around a column of entries.
+fn menu_popover() -> (gtk::Popover, gtk::Box) {
+    let pop = gtk::Popover::new();
+    let b = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    b.set_margin_top(6);
+    b.set_margin_bottom(6);
+    pop.set_child(Some(&b));
+    (pop, b)
 }

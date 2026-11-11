@@ -60,6 +60,11 @@ list.timeline > row {
   border-radius: 8px;
 }
 
+/* The header bar's account menu: the avatar fills the button. */
+menubutton.account-button > button {
+  padding: 2px;
+}
+
 button.time {
   padding: 0 4px;
   min-height: 0;
