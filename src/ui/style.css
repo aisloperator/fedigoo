@@ -60,9 +60,21 @@ list.timeline > row {
   border-radius: 8px;
 }
 
-/* The header bar's account menu: the avatar fills the button. */
+/* The header bar's account menu: the avatar takes the whole button, edges
+   included (its size matches the other header buttons, see App), so the
+   button draws nothing of its own; hover and open dim the avatar slightly. */
 menubutton.account-button > button {
-  padding: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+menubutton.account-button > button:hover image,
+menubutton.account-button > button:checked image {
+  opacity: 0.8;
 }
 
 button.time {

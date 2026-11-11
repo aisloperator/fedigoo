@@ -322,6 +322,23 @@ impl App {
     }
 
     fn connect_signals(self: &Rc<Self>, gtk_app: &gtk::Application) {
+        // The avatar takes the whole size of a header button, edges included:
+        // New post's border box once it's laid out, which is when two frames
+        // agree (the first has a provisional size).  `measure` would include
+        // its CSS margins, and `height` leaves out its border and padding.
+        let a = self.clone();
+        let last = Cell::new(0);
+        self.account_btn.add_tick_callback(move |_, _| {
+            let height = a
+                .compose_btn
+                .compute_bounds(&a.compose_btn)
+                .map_or(0, |b| b.height().round() as i32);
+            if height <= 0 || height != last.replace(height) {
+                return glib::ControlFlow::Continue;
+            }
+            a.account_img.set_pixel_size(height);
+            glib::ControlFlow::Break
+        });
         let a = self.clone();
         self.window.connect_realize(move |w| {
             let Some(surface) = w.surface() else { return };
