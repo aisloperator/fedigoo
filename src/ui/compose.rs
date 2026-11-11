@@ -433,7 +433,13 @@ pub fn open(app: &Rc<App>, mode: Mode) {
             tv.stop_signal_emission_by_name("paste-clipboard");
             let cw = Rc::downgrade(&c);
             glib::spawn_future_local(async move {
-                if let (Ok(Some(t)), Some(c)) = (clip.read_texture_future().await, cw.upgrade()) {
+                // A PNG is read as bytes and decoded here, as GDK's own
+                // decoding can crash on some PNGs (see `crate::image`).
+                let texture = match read_clipboard_png(&clip).await {
+                    Some(bytes) => crate::image::texture_from_bytes(&bytes).ok(),
+                    None => clip.read_texture_future().await.ok().flatten(),
+                };
+                if let (Some(t), Some(c)) = (texture, cw.upgrade()) {
                     c.add_upload(
                         "pasted.png".into(),
                         "image/png".into(),
@@ -804,7 +810,7 @@ impl Composer {
             .as_ref()
             .and_then(|o| o.child())
             .and_downcast::<gtk::Picture>();
-        if let (Some(p), Ok(t)) = (&pic, gdk::Texture::from_bytes(&bytes)) {
+        if let (Some(p), Ok(t)) = (&pic, crate::image::texture_from_bytes(&bytes)) {
             p.set_paintable(Some(&t));
         }
         let spinner = overlay
@@ -1022,6 +1028,26 @@ impl Composer {
         self.watch_for_stall();
         self.sync_status();
     }
+}
+
+/// The clipboard's image as PNG bytes, if it offers that format.
+async fn read_clipboard_png(clip: &gdk::Clipboard) -> Option<glib::Bytes> {
+    if !clip.formats().contain_mime_type("image/png") {
+        return None;
+    }
+    let (stream, _) = clip
+        .read_future(&["image/png"], glib::Priority::DEFAULT)
+        .await
+        .ok()?;
+    let out = gio::MemoryOutputStream::new_resizable();
+    out.splice_future(
+        &stream,
+        gio::OutputStreamSpliceFlags::CLOSE_SOURCE | gio::OutputStreamSpliceFlags::CLOSE_TARGET,
+        glib::Priority::DEFAULT,
+    )
+    .await
+    .ok()?;
+    Some(out.steal_as_bytes())
 }
 
 #[cfg(test)]

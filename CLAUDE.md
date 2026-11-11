@@ -30,6 +30,7 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
 - `src/api.rs`: `Api` (host + token, cheap to clone), `request()` for every call,
   `Body::{Empty,Json,Form,Multipart}`, `Link`-header pagination (`Response.next`),
   thread-local `soup::Session`, and the image texture cache (`load_image`/`load_picture`).
+- `src/image.rs`: `texture_from_bytes`, the only way to decode images (see below).
 - `src/model.rs`: typed structs parsed from `json::Value` (`Status`, `Account`, …).
   `Status::shown()` gives the boosted status for boosts.
 - `src/ui/app.rs`: `App` (one `Rc<App>` for the process): window, sidebar `Root`s,
@@ -158,6 +159,12 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   check so a late image can't overwrite the current one; `api::load_picture` has no
   such guard. Emitting gesture signals directly doesn't test how gestures interact:
   test pointer input with `tools/broadway-input.py` (see below).
+- Decode images only with `image::texture_from_bytes`, never `gdk::Texture::from_bytes`
+  or `Clipboard::read_texture` on PNG data: GTK 4.18's PNG loader segfaults on a `cICP`
+  chunk naming a colour space it doesn't support (Mastodon video previews have
+  "unspecified" primaries, #28). `texture_from_bytes` drops such a chunk first; the
+  supported values were found by trying each one, and a test decodes a PNG that crashes
+  plain GDK.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

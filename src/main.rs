@@ -6,6 +6,7 @@
 mod api;
 mod config;
 mod html;
+mod image;
 mod install;
 mod json;
 mod model;

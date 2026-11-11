@@ -323,7 +323,7 @@ pub fn with_texture(url: &str, f: impl FnOnce(&gdk::Texture) + 'static) {
             if !(200..300).contains(&msg.status().into_glib()) {
                 return None;
             }
-            gdk::Texture::from_bytes(&bytes).ok()
+            crate::image::texture_from_bytes(&bytes).ok()
         }
         .await;
         let waiters = cache.borrow_mut().pending.remove(&url).unwrap_or_default();
