@@ -86,6 +86,12 @@ conversion are built in. HTTPS uses libsoup and glib-networking.
     fedigoo --x11      # force X11
     fedigoo --wayland  # force Wayland
 
+On X11 the window manager provides the title bar and the window buttons (or none,
+as in tiling window managers), and FediGoo's header bar is a toolbar under it.
+On GNOME-style desktops (GNOME, Pantheon, Budgie) and on Wayland, the header bar is
+the title bar, with its own minimize, maximize and close buttons. `GTK_CSD=1`
+asks for that anywhere.
+
 ## Installing
 
 On Debian 13 (amd64), each [release](https://github.com/aisloperator/fedigoo/releases)

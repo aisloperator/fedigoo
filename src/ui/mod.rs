@@ -4,6 +4,7 @@ pub mod app;
 mod compose;
 mod filters;
 mod fit;
+mod frame;
 mod login;
 mod media;
 mod pages;

@@ -1,6 +1,6 @@
 //! The main window, navigation, account handling and streaming.
 
-use super::{anchor, compose, fit, login, pages, paging, prefs, timeline::Timeline};
+use super::{anchor, compose, fit, frame, login, pages, paging, prefs, timeline::Timeline};
 use crate::api::{self, Api};
 use crate::config::Config;
 use crate::json::Value;
@@ -187,7 +187,15 @@ impl App {
         menu_btn.set_icon_name("open-menu-symbolic");
         menu_btn.set_tooltip_text(Some("Main menu"));
         header.pack_end(&menu_btn);
-        window.set_titlebar(Some(&header));
+        // The header bar is the title bar only where the app should draw its
+        // own (see `frame`); elsewhere it's a toolbar under the window
+        // manager's title bar, without window buttons.
+        let client_side = gdk::Display::default().is_some_and(|d| frame::client_side(&d));
+        if client_side {
+            window.set_titlebar(Some(&header));
+        } else {
+            header.set_show_title_buttons(false);
+        }
 
         let sidebar = gtk::ListBox::new();
         sidebar.add_css_class("navigation-sidebar");
@@ -276,7 +284,15 @@ impl App {
         main.append(&side_col);
         main.append(&gtk::Separator::new(gtk::Orientation::Vertical));
         main.append(&overlay);
-        window.set_child(Some(&main));
+        if client_side {
+            window.set_child(Some(&main));
+        } else {
+            main.set_vexpand(true);
+            let column = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            column.append(&header);
+            column.append(&main);
+            window.set_child(Some(&column));
+        }
 
         let app = Rc::new(App {
             window,

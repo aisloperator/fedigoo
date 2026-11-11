@@ -42,6 +42,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   size of New post's border box, read by a tick callback once two frames agree: the
   first frame has a provisional size, `measure` includes CSS margins and `height()`
   excludes border and padding.
+- `src/ui/frame.rs`: whether the header bar is the window's title bar (client-side
+  decorations, with window buttons) or a toolbar under the window manager's: the pure,
+  tested `wants_client_side` (Wayland, GNOME-style `XDG_CURRENT_DESKTOP` on X11, or
+  `GTK_CSD=1`). Test the X11 cases under Xvfb with `xmonad` or `xfwm4` (both installed),
+  run with a throwaway `HOME` so they don't read the user's configuration.
 - `src/ui/timeline.rs`: generic paged list driven by a `Source` enum; it also takes live
   stream events.
 - `src/ui/pages.rs`: profile, thread, hashtag, lists, search, explore, report, edit profile.
