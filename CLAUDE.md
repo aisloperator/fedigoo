@@ -164,7 +164,8 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   chunk naming a colour space it doesn't support (Mastodon video previews have
   "unspecified" primaries, #28). `texture_from_bytes` drops such a chunk first; the
   supported values were found by trying each one, and a test decodes a PNG that crashes
-  plain GDK.
+  plain GDK. Upstream fixed it in GTK 4.21.6/4.22.0 (commit `c1590e2a79a2`), not in any
+  4.18.x or 4.20.x release (#29); keep the workaround while those are supported.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display
