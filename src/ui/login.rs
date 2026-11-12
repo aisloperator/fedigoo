@@ -60,7 +60,7 @@ pub fn open(app: &Rc<App>) {
     reopen.set_halign(gtk::Align::Start);
     p2.append(&reopen);
     let code = gtk::Entry::new();
-    code.set_placeholder_text(Some("Paste the authorisation code here"));
+    code.set_placeholder_text(Some("Paste the authorization code here"));
     p2.append(&code);
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     row.set_halign(gtk::Align::End);
@@ -121,7 +121,7 @@ pub fn open(app: &Rc<App>) {
                     Ok(r) => {
                         let url = authorize_url(&r);
                         info.set_markup(&format!(
-                            "A browser window has been opened on <b>{}</b>. Log in there, authorise FediGoo, then paste the code you are shown below.\n\nIf no browser opened, visit:",
+                            "A browser window has been opened on <b>{}</b>. Log in there, authorize FediGoo, then paste the code you are shown below.\n\nIf no browser opened, visit:",
                             glib::markup_escape_text(&host)
                         ));
                         url_label.set_text(&url);

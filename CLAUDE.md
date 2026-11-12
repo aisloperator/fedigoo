@@ -193,6 +193,11 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   label's text (Translate) hides the button. "Show less" on a post read to its end
   scrolls up by the height it lost (`keep_in_view`), so the button stays under the
   pointer. Copy text still copies the whole post.
+- User-visible text (labels, tooltips, messages, `--help`, README) is in US English:
+  "favorite", "authorize", "canceled", "color". Mastodon's own names keep its UK
+  spelling and must not change: API paths and JSON fields (`/favourite`,
+  `favourited`, `favourites_count`, notification type `favourite`), and our icon names
+  (`fedigoo-favourite`) and Rust identifiers (`Root::Favourites`).
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display

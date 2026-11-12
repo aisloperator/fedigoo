@@ -27,7 +27,7 @@ fn usage() {
          --install   install for this user: ~/.local/bin/fedigoo, plus a menu\n              \
          entry and icon under ~/.local/share\n  \
          --uninstall remove those files (accounts and settings are kept)\n\n\
-         Without an option GTK picks the backend (GDK_BACKEND is honoured).\n\
+         Without an option GTK picks the backend (GDK_BACKEND is honored).\n\
          Data is stored in {}",
         config::dir().display()
     );

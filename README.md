@@ -14,7 +14,7 @@ No license is given.
 
 - Multiple accounts, with OAuth login, switching and logout (which revokes the token),
   from the current account's avatar in the header bar
-- Timelines: home, local, federated, hashtags, lists, trending posts, bookmarks and favourites
+- Timelines: home, local, federated, hashtags, lists, trending posts, bookmarks and favorites
 - Notifications, mentions and private conversations
 - Live updates over the streaming API, with an unread badge and a "new items" button
 - Posts: content warnings, sensitive-media covers, image viewer with alt text,
@@ -22,7 +22,7 @@ No license is given.
   (with voting), threads with indented replies, translation; very long posts
   (over 600 characters) show only their start, with "Show more", except as the
   post a thread is opened on
-- Actions: reply, boost, favourite, bookmark, edit, delete, delete & re-draft,
+- Actions: reply, boost, favorite, bookmark, edit, delete, delete & re-draft,
   pin, mute conversation, copy link or text, report
 - Composer: character counter using the instance limit, content warning,
   visibility, language, media upload (file picker or paste) with alt text,
@@ -87,7 +87,7 @@ conversion are built in. HTTPS uses libsoup and glib-networking.
 
 ## Running
 
-    fedigoo            # GTK picks the backend (honours GDK_BACKEND)
+    fedigoo            # GTK picks the backend (honors GDK_BACKEND)
     fedigoo --x11      # force X11
     fedigoo --wayland  # force Wayland
 
@@ -115,7 +115,7 @@ application menu and dock. `fedigoo --uninstall` removes those files and
 leaves your accounts and settings alone.
 
 Log in through the welcome screen. FediGoo opens your instance's
-authorisation page in the browser; paste the code it shows back into
+authorization page in the browser; paste the code it shows back into
 FediGoo.
 
 All local data (accounts, access tokens, OAuth client registrations,

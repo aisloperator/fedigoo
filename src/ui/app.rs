@@ -63,7 +63,7 @@ const ROOTS: &[(Root, &str, &str)] = &[
     (Root::Explore, "Explore", "web-browser-symbolic"),
     (Root::Search, "Search", "system-search-symbolic"),
     (Root::Bookmarks, "Bookmarks", "user-bookmarks-symbolic"),
-    (Root::Favourites, "Favourites", "starred-symbolic"),
+    (Root::Favourites, "Favorites", "starred-symbolic"),
     (Root::Lists, "Lists", "view-list-symbolic"),
     (
         Root::FollowedTags,

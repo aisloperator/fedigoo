@@ -121,7 +121,7 @@ impl Actions {
             s.favourited,
             ("fedigoo-favourite-symbolic", "fedigoo-favourited-symbolic"),
             "active-fav",
-            ("Favourite", "Unfavourite"),
+            ("Favorite", "Unfavorite"),
         );
         self.bookmark.set_state(
             s.bookmarked,
@@ -369,7 +369,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         for (label, path) in [
             (format!("{} boosts", s.reblogs_count), "reblogged_by"),
             (
-                format!("{} favourites", s.favourites_count),
+                format!("{} favorites", s.favourites_count),
                 "favourited_by",
             ),
         ] {
@@ -380,7 +380,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
             let title = if path == "reblogged_by" {
                 "Boosted by"
             } else {
-                "Favourited by"
+                "Favorited by"
             };
             b.connect_clicked(move |_| {
                 pages::open_accounts(&a, title, &format!("/api/v1/statuses/{id}/{path}"));
@@ -734,7 +734,7 @@ fn more_menu(
                         } else {
                             "Delete this post?"
                         })
-                        .detail("Boosts and favourites will be lost.")
+                        .detail("Boosts and favorites will be lost.")
                         .buttons(["Cancel", "Delete"])
                         .cancel_button(0)
                         .default_button(1)
@@ -1122,7 +1122,7 @@ fn notification_widget(app: &Rc<App>, n: Notification) -> gtk::Widget {
     let (icon, verb) = match n.kind.as_str() {
         "mention" => ("fedigoo-mention-symbolic", "mentioned you"),
         "reblog" => ("media-playlist-repeat-symbolic", "boosted your post"),
-        "favourite" => ("starred-symbolic", "favourited your post"),
+        "favourite" => ("starred-symbolic", "favorited your post"),
         "follow" => ("list-add-symbolic", "followed you"),
         "follow_request" => ("list-add-symbolic", "requested to follow you"),
         "poll" => ("view-list-bullet-symbolic", "— a poll has ended"),

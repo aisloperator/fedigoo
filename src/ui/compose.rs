@@ -669,9 +669,9 @@ impl Composer {
         };
         task.abort();
         let text = if self.edit_id.is_some() {
-            "Cancelled. The server may already have received the change."
+            "Canceled. The server may already have received the change."
         } else {
-            "Cancelled. If the server already received this post, it will appear \
+            "Canceled. If the server already received this post, it will appear \
              anyway. Posting it again unchanged won't make a copy."
         };
         *self.message.borrow_mut() = Some((text.to_string(), false));
