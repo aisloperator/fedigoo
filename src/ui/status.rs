@@ -334,6 +334,13 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         content.set_visible(false);
     }
     body.append(&content);
+    // A long post seen in a feed or among replies shows only its start.
+    if !focused
+        && let Some(short) =
+            html::abbreviated_markup(&s.content_html, ABBREVIATE_TO, ABBREVIATE_OVER)
+    {
+        body.append(&abbreviate(&content, &short, &s.content_html));
+    }
 
     if !s.media.is_empty() {
         body.append(&media::grid(app, &s.media, s.sensitive));
@@ -478,6 +485,98 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
     let outer = outer.upcast();
     app.track_post(&outer, model::status_accounts(&status));
     outer
+}
+
+/// A post whose text is longer than this many characters (500 is a common
+/// limit for new posts) is abbreviated outside its own thread view…
+const ABBREVIATE_OVER: usize = 600;
+/// …to about this many.
+const ABBREVIATE_TO: usize = 500;
+
+/// Shows `short` in `content` and returns a "Show more"/"Show less" button
+/// that switches it between that and the whole post.  If something else
+/// replaces the text (a translation), the button goes away.
+fn abbreviate(content: &gtk::Label, short: &str, html_text: &str) -> gtk::Button {
+    let full = content.label().to_string();
+    let short = short.to_string();
+    let btn = gtk::Button::with_label("Show more");
+    btn.add_css_class("flat");
+    btn.add_css_class("show-more");
+    btn.set_halign(gtk::Align::Start);
+    btn.set_tooltip_text(Some(&format!(
+        "{} characters in all",
+        html::to_text(html_text).chars().count()
+    )));
+    // Set while the button changes the text, so the notify below can tell
+    // its own changes from others.
+    let ours = Rc::new(std::cell::Cell::new(true));
+    content.set_markup(&short);
+    ours.set(false);
+    let shown = Rc::new(std::cell::Cell::new(false));
+    btn.connect_clicked(glib::clone!(
+        #[weak]
+        content,
+        #[strong]
+        ours,
+        move |b| {
+            let whole = !shown.get();
+            shown.set(whole);
+            let old_height = content.height();
+            ours.set(true);
+            content.set_markup(if whole { &full } else { &short });
+            ours.set(false);
+            b.set_label(if whole { "Show less" } else { "Show more" });
+            if !whole {
+                keep_in_view(
+                    b,
+                    old_height
+                        - content
+                            .measure(gtk::Orientation::Vertical, content.width())
+                            .1,
+                );
+            }
+        }
+    ));
+    content.connect_label_notify(glib::clone!(
+        #[weak]
+        btn,
+        move |_| {
+            if !ours.get() {
+                btn.set_visible(false);
+            }
+        }
+    ));
+    btn
+}
+
+/// After the text above `btn` got `shrunk` pixels shorter: if that moves
+/// the button above the top of its scrolled window (collapsing a long post
+/// read to its end), scrolls up by as much, so the button stays where it was
+/// on screen, with the post's start above it.
+fn keep_in_view(btn: &gtk::Button, shrunk: i32) {
+    let Some(sw) = btn
+        .ancestor(gtk::ScrolledWindow::static_type())
+        .and_downcast::<gtk::ScrolledWindow>()
+    else {
+        return;
+    };
+    // Measured against the scrolled content, as in `pages::scroll_to_row`.
+    let Some(scrolled) = sw
+        .child()
+        .and_then(|c| match c.downcast::<gtk::Viewport>() {
+            Ok(viewport) => viewport.child(),
+            Err(child) => Some(child),
+        })
+    else {
+        return;
+    };
+    let (Some(bounds), true) = (btn.compute_bounds(&scrolled), shrunk > 0) else {
+        return;
+    };
+    let adj = sw.vadjustment();
+    if f64::from(bounds.y()) - f64::from(shrunk) < adj.value() {
+        adj.set_value((adj.value() - f64::from(shrunk)).max(0.0));
+    }
 }
 
 fn more_menu(

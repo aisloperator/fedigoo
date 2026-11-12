@@ -19,7 +19,9 @@ No license is given.
 - Live updates over the streaming API, with an unread badge and a "new items" button
 - Posts: content warnings, sensitive-media covers, image viewer with alt text,
   link cards (right-click to open the link or copy it, also as Markdown), polls
-  (with voting), threads with indented replies, translation
+  (with voting), threads with indented replies, translation; very long posts
+  (over 600 characters) show only their start, with "Show more", except as the
+  post a thread is opened on
 - Actions: reply, boost, favourite, bookmark, edit, delete, delete & re-draft,
   pin, mute conversation, copy link or text, report
 - Composer: character counter using the instance limit, content warning,

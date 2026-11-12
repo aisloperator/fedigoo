@@ -219,14 +219,57 @@ fn walk(html: &str, mut emit: impl FnMut(Ev<'_>)) {
 
 /// Pango markup with `<a href>` links, suitable for `Label::set_markup`.
 pub fn to_markup(html: &str) -> String {
+    markup(html, usize::MAX).0
+}
+
+/// The start of the post as markup, as `to_markup`, if its text is longer
+/// than `over` characters: about `keep` characters (`keep` ≤ `over`), cut
+/// after a whole word where there is one, ending in "…".  None if the post
+/// is short enough to show whole.
+pub fn abbreviated_markup(html: &str, keep: usize, over: usize) -> Option<String> {
+    if to_text(html).chars().count() <= over {
+        return None;
+    }
+    let (m, cut) = markup(html, keep);
+    cut.then_some(m)
+}
+
+/// Markup for at most `keep` characters of text (newlines included), and
+/// whether some text was left out.
+fn markup(html: &str, keep: usize) -> (String, bool) {
     let mut out = String::new();
     let mut open: Vec<&'static str> = Vec::new();
+    let mut left = keep;
+    let mut cut = false;
     walk(html, |ev| match ev {
-        Ev::Text(t) => out.push_str(&glib::markup_escape_text(t)),
+        _ if cut => {}
+        Ev::Text(t) => {
+            let n = t.chars().count();
+            if n <= left {
+                left -= n;
+                out.push_str(&glib::markup_escape_text(t));
+                return;
+            }
+            cut = true;
+            // The first `left` characters, back to the end of a word if the
+            // cut falls inside one and the piece has an earlier word break.
+            let end = t.char_indices().nth(left).map_or(t.len(), |(i, _)| i);
+            let mut kept = &t[..end];
+            if !t[end..].starts_with(char::is_whitespace)
+                && let Some(i) = kept.rfind(char::is_whitespace)
+            {
+                kept = &kept[..i];
+            }
+            out.push_str(&glib::markup_escape_text(kept.trim_end()));
+        }
         Ev::Newlines(n) => {
             // Collapse runs of breaks so that "</p><p>" doesn't triple-space.
             let have = out.chars().rev().take_while(|&c| c == '\n').count();
             for _ in have..n.max(have) {
+                if left == 0 {
+                    break;
+                }
+                left -= 1;
                 out.push('\n');
             }
         }
@@ -263,10 +306,14 @@ pub fn to_markup(html: &str) -> String {
             open.push(t);
         }
     });
+    let mut out = out.trim_end().to_string();
     for t in open.iter().rev() {
         out.push_str(&format!("</{t}>"));
     }
-    out.trim_end().to_string()
+    if cut {
+        out.push('…');
+    }
+    (out, cut)
 }
 
 pub fn to_text(html: &str) -> String {
@@ -314,6 +361,42 @@ mod tests {
             to_markup(r#"<a href="https://e.x/?a=1&amp;b=2">here</a>"#),
             "<a href=\"https://e.x/?a=1&amp;b=2\" title=\"https://e.x/?a=1&amp;amp;b=2\">here</a>"
         );
+    }
+
+    #[test]
+    fn abbreviates_long_posts_only() {
+        assert_eq!(abbreviated_markup("<p>short</p>", 3, 10), None);
+        // Over the limit: cut after a whole word, tags closed, "…" outside.
+        assert_eq!(
+            abbreviated_markup("<p>one <b>two three</b> four</p>", 11, 12).as_deref(),
+            Some("one <b>two</b>…")
+        );
+        // A cut on a word boundary keeps the whole word.
+        assert_eq!(
+            abbreviated_markup("<p>one two three</p>", 7, 8).as_deref(),
+            Some("one two…")
+        );
+        // A word longer than the rest of the budget is cut inside it.
+        assert_eq!(
+            abbreviated_markup("<p>abcdefghij</p>", 4, 5).as_deref(),
+            Some("abcd…")
+        );
+        // Paragraph breaks count, and trailing ones are dropped.
+        assert_eq!(
+            abbreviated_markup("<p>ab</p><p>cd</p><p>ef</p>", 4, 5).as_deref(),
+            Some("ab…")
+        );
+        assert_eq!(
+            abbreviated_markup("<p>ab</p><p>cd</p><p>ef</p>", 6, 7).as_deref(),
+            Some("ab\n\ncd…")
+        );
+        // Characters, not bytes; links closed before the "…".
+        assert_eq!(
+            abbreviated_markup(r#"<p>éé <a href="h">ŷŷŷ ŷŷŷ</a></p>"#, 6, 8).as_deref(),
+            Some(r#"éé <a href="h" title="h">ŷŷŷ</a>…"#)
+        );
+        // Text ending exactly at the budget, with nothing after: not cut.
+        assert_eq!(markup("<p>abcd</p>", 4), ("abcd".to_string(), false));
     }
 
     #[test]

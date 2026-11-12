@@ -177,6 +177,13 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   supported values were found by trying each one, and a test decodes a PNG that crashes
   plain GDK. Upstream fixed it in GTK 4.21.6/4.22.0 (commit `c1590e2a79a2`), not in any
   4.18.x or 4.20.x release (#29); keep the workaround while those are supported.
+- Long posts (text over `ABBREVIATE_OVER` characters) are abbreviated everywhere except
+  as the focused post of a thread: `status::abbreviate` shows the start from the pure,
+  tested `html::abbreviated_markup` (about `ABBREVIATE_TO` characters, cut after a word,
+  tags closed, "…") with a "Show more"/"Show less" button. Something else replacing the
+  label's text (Translate) hides the button. "Show less" on a post read to its end
+  scrolls up by the height it lost (`keep_in_view`), so the button stays under the
+  pointer. Copy text still copies the whole post.
 - Custom emoji shortcodes render as text; video/audio open externally.
 
 ## Visual testing without a display
