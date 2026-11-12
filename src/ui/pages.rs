@@ -81,7 +81,7 @@ pub fn root_page(app: &Rc<App>, root: Root, title: &str) {
         Root::Conversations => (Source::Conversations, None),
         Root::Bookmarks => (st("/api/v1/bookmarks", &[]), None),
         Root::Favourites => (st("/api/v1/favourites", &[]), None),
-        Root::FollowedTags => (Source::Tags("/api/v1/followed_tags".into()), None),
+        Root::FollowedTags => return super::followed_tags::page(app, title),
         Root::FollowRequests => (Source::FollowRequests, None),
         Root::Mutes => (Source::Accounts("/api/v1/mutes".into()), None),
         Root::Blocks => (Source::Accounts("/api/v1/blocks".into()), None),

@@ -32,8 +32,11 @@ No license is given.
   hide boosts, mute, block, domain block, list membership, followers and following
 - Search for accounts, hashtags and posts (URLs from other servers are resolved), with a
   selector like Explore's: All shows a few of each kind, and each kind has its own view
-- Explore (trending posts, hashtags and news), followed hashtags, follow requests,
-  list management, mutes and blocks, profile editing (including avatar and header)
+- Explore (trending posts, hashtags and news), follow requests, list management, mutes
+  and blocks, profile editing (including avatar and header)
+- Followed hashtags as a table sorted by name or by people posting recently (click a
+  column title; again to reverse), opened with one click, with an unfollow button on
+  each row (and follow again, until you leave the page)
 - Keyword and hashtag filters: view, add, edit and delete them; matching posts are
   collapsed behind a warning or hidden, as each filter says
 - Links to profiles, posts and hashtags on any server open inside the app

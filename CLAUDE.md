@@ -53,6 +53,15 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   Search (`SearchPage`) has an All/Accounts/Hashtags/Posts selector (the `tabs` helper,
   as Explore): All asks `/api/v2/search` for `SEARCH_ALL_LIMIT` of each kind, a single
   kind pages by `offset` with "Load more"; the query is the pure, tested `search_params`.
+- `src/ui/followed_tags.rs`: the Followed hashtags page, a `ColumnView` (not a
+  `Timeline`) over a `gio::ListStore` of `glib::BoxedAnyObject` rows, sorted by the
+  pure, tested `by_name`/`by_people` through column-header sorters (default: people,
+  descending). It loads every page of `/api/v1/followed_tags` first, since sorting part
+  of the list would be wrong. Single click opens the tag (`single_click_activate`); the
+  row button unfollows, leaving the row struck through with a button to follow again.
+  To redraw a row after a change, replace its item (`ListStore::splice`): GTK doesn't
+  rebind cells for an `items_changed` with the same object. The name column ellipsizes
+  so the table's width doesn't change with the rows in view.
 - `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
   request body is built by the pure, tested `model::filter_body`.
 - `src/ui/anchor.rs`: keeps the top post in place across resizes; `anchor_at` is pure and
