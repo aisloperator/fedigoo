@@ -21,6 +21,14 @@ pub enum Source {
 }
 
 impl Source {
+    /// Whether a single click opens a row.  Rows that do nothing but lead
+    /// somewhere (trending hashtags and news) open on one click, with the
+    /// link cursor; posts and the other rows keep double click (Enter, for
+    /// the keyboard), so clicks on their text and buttons don't navigate.
+    pub fn single_click(&self) -> bool {
+        matches!(self, Source::Tags(_) | Source::Links)
+    }
+
     pub fn statuses(path: &str, query: &[(&str, &str)]) -> Source {
         Source::Statuses(
             path.to_string(),
@@ -102,7 +110,7 @@ impl Timeline {
     pub fn new(app: &Rc<App>, source: Source, header: Option<gtk::Widget>) -> Rc<Timeline> {
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::None);
-        list.set_activate_on_single_click(false);
+        list.set_activate_on_single_click(source.single_click());
         list.add_css_class("timeline");
 
         let more_btn = gtk::Button::with_label("Load more");
@@ -215,6 +223,8 @@ impl Timeline {
     }
 
     pub fn set_source(&self, source: Source) {
+        self.list
+            .set_activate_on_single_click(source.single_click());
         *self.source.borrow_mut() = source;
         self.reload();
     }
@@ -381,6 +391,9 @@ impl Timeline {
         let row = gtk::ListBoxRow::new();
         row.set_child(Some(&w));
         row.set_activatable(act.is_some());
+        if act.is_some() && self.source.borrow().single_click() {
+            row.set_cursor_from_name(Some("pointer"));
+        }
         if at_top {
             self.list.prepend(&row);
         } else {
@@ -463,5 +476,18 @@ impl Timeline {
                 true
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_click_for_navigation_rows_only() {
+        assert!(Source::Tags("/api/v1/trends/tags".into()).single_click());
+        assert!(Source::Links.single_click());
+        assert!(!Source::statuses("/api/v1/trends/statuses", &[]).single_click());
+        assert!(!Source::Accounts("/api/v1/mutes".into()).single_click());
     }
 }

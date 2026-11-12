@@ -368,10 +368,7 @@ pub fn build(app: &Rc<App>, status: Status, focused: bool) -> gtk::Widget {
         let stats = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         for (label, path) in [
             (format!("{} boosts", s.reblogs_count), "reblogged_by"),
-            (
-                format!("{} favorites", s.favourites_count),
-                "favourited_by",
-            ),
+            (format!("{} favorites", s.favourites_count), "favourited_by"),
         ] {
             let b = gtk::Button::with_label(&label);
             b.add_css_class("flat");

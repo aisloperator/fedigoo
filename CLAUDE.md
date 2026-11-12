@@ -159,6 +159,10 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   Space included, so it can't tell. At an end,
   the page's `keep` (via `App::current_page`) decides: a `Timeline` gets `check_new`, a
   `ThreadView` gets `reload_at(ThreadFocus::First/Last)`.
+- Timeline rows open on double click (or Enter), so clicks on a post's text and buttons
+  don't navigate; rows that only lead somewhere (`Source::single_click`: trending
+  hashtags and news in Explore) open on a single click and get the link cursor. The
+  Timeline switches the mode in `set_source`, since Explore's tabs share one Timeline.
 - Links in post HTML get `title` = their URL (`html::to_markup`), which GtkLabel shows
   as a hover tooltip. The title is itself markup, so it is escaped twice.
 - Avatars, images and link-like targets (boosted-by line, timestamps, link cards,
@@ -208,6 +212,10 @@ fallback when Broadway drops input: once it lost every click after the first one
 Search page (with or without our resize code, after a fresh `gtk4-broadwayd`), while the
 same clicks worked on X11. Keep a second `CARGO_TARGET_DIR` out of
 the scratchpad: `/tmp` is a small tmpfs.
+
+Opening a link (news rows, link cards, "Open in browser") launches the real browser on
+the test display: with the user's `HOME` it would use their browser profile. Give such
+tests a throwaway `HOME` as well as `XDG_CONFIG_HOME`.
 
 Run on GTK's Broadway backend with a throwaway config dir (never the user's real one):
 
