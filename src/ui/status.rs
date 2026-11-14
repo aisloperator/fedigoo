@@ -12,7 +12,8 @@ use std::rc::Rc;
 
 pub fn avatar(url: &str, size: i32) -> gtk::Image {
     let img = gtk::Image::from_icon_name("avatar-default-symbolic");
-    img.set_pixel_size(size);
+    // Avatars zoom with the text.
+    super::zoom::set_pixel_size(&img, size);
     img.add_css_class("avatar");
     api::load_image(&img, url);
     img

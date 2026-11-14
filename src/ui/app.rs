@@ -853,7 +853,7 @@ impl App {
         for (i, acc) in accounts.iter().enumerate() {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let img = gtk::Image::new();
-            img.set_pixel_size(28);
+            zoom::set_pixel_size(&img, 28);
             img.add_css_class("avatar");
             api::load_image(&img, &acc.avatar);
             row.append(&img);
@@ -969,6 +969,9 @@ impl App {
             c.settings.zoom = level;
             c.save();
         }
+        // Keep the post at the top of the view in place, as for a resize:
+        // every post rewraps at the new size.
+        self.hold_scroll_position();
         zoom::apply(level);
         self.update_zoom_ui();
         self.toast(&format!("Zoom {level}%"));

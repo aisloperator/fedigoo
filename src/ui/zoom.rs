@@ -4,13 +4,14 @@
 //! The zoom steps through fixed levels that include 100%, so zooming in and
 //! back out always returns to exactly 100%.  It scales text through GTK's
 //! font resolution (`gtk-xft-dpi`), so everything sized from text (labels,
-//! the post column's width, paddings in `em`) follows; icons and avatars keep
-//! their pixel sizes.  Images in posts never get larger than at 100%
-//! (`fit::set_zoom`), but they shrink with a narrower column.
+//! the post column's width, paddings in `em`) follows.  Avatars zoom too
+//! (`set_pixel_size`); icons keep their pixel sizes.  Images in posts never
+//! get larger than at 100% (`fit::set_zoom`), but they shrink with a
+//! narrower column.
 
 use super::fit;
-use gtk::glib;
-use std::cell::Cell;
+use gtk::{glib, prelude::*};
+use std::cell::{Cell, RefCell};
 
 /// The zoom levels, in percent.
 pub const LEVELS: [u32; 11] = [50, 67, 80, 90, 100, 110, 120, 133, 150, 170, 200];
@@ -42,7 +43,30 @@ pub fn xft_dpi(base: i32, level: u32) -> i32 {
     ((base as i64 * level as i64 + 50) / 100) as i32
 }
 
+/// `px` pixels at 100%, at `level`.
+pub fn scaled(px: i32, level: u32) -> i32 {
+    ((px as i64 * level as i64 + 50) / 100) as i32
+}
+
+/// Sets `img` (an avatar) to `px` pixels at 100%, scaled to the zoom now and
+/// whenever it changes.
+pub fn set_pixel_size(img: &gtk::Image, px: i32) {
+    img.set_pixel_size(scaled(px, LEVEL.with(Cell::get)));
+    SIZED.with(|v| {
+        let mut v = v.borrow_mut();
+        // Drop the images that are gone, now and then.
+        if v.len() >= SIZED_CAP.with(Cell::get) {
+            v.retain(|(w, _)| w.upgrade().is_some());
+            SIZED_CAP.with(|c| c.set((v.len() * 2).max(256)));
+        }
+        v.push((img.downgrade(), px));
+    });
+}
+
 thread_local! {
+    /// Images sized by `set_pixel_size`, with their size at 100%.
+    static SIZED: RefCell<Vec<(glib::WeakRef<gtk::Image>, i32)>> = const { RefCell::new(Vec::new()) };
+    static SIZED_CAP: Cell<usize> = const { Cell::new(256) };
     /// The desktop's font resolution, which 100% means.
     static BASE: Cell<i32> = const { Cell::new(0) };
     /// The resolution this module last set, to tell the desktop's own
@@ -83,6 +107,15 @@ pub fn apply(level: u32) {
         settings.set_gtk_xft_dpi(dpi);
     }
     fit::set_zoom(level as f64 / 100.0);
+    SIZED.with(|v| {
+        v.borrow_mut().retain(|(w, px)| match w.upgrade() {
+            Some(img) => {
+                img.set_pixel_size(scaled(*px, level));
+                true
+            }
+            None => false,
+        })
+    });
 }
 
 #[cfg(test)]
@@ -125,6 +158,14 @@ mod tests {
         assert_eq!(nearest(104), 100);
         assert_eq!(nearest(1000), 200);
         assert_eq!(nearest(0), 50);
+    }
+
+    #[test]
+    fn pixel_sizes() {
+        assert_eq!(scaled(44, 100), 44);
+        assert_eq!(scaled(44, 150), 66);
+        assert_eq!(scaled(44, 133), 59);
+        assert_eq!(scaled(44, 50), 22);
     }
 
     #[test]
