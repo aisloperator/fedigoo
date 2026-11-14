@@ -66,15 +66,16 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   actions, also behind the main menu's Zoom submenu, `App::add_zoom_submenu`, a `Stack`
   page in the same popover whose items keep it open). Levels are the fixed
   `zoom::LEVELS` through 100%, stepped by the pure, tested `zoom_in`/`zoom_out`, kept in
-  `settings.zoom`. `apply` scales GTK's `gtk-xft-dpi` from the desktop's value (taken
-  again if the desktop changes it), so text and anything sized in `em` follows; icons
-  don't. Avatars do: size them with `zoom::set_pixel_size` (as `status::avatar` does),
-  which rescales them on every change. `App::set_zoom` holds the scroll position like a
-  resize (`anchor::capture`). Images in posts must not grow: `fit::set_zoom` makes
-  `FitLayout` lay them out in `fit::limited_width` (tested) and centre them. A zoom
-  costs about twice a window resize (every label is restyled, reshaped and rewrapped;
-  ~400 ms for 20 Explore posts on Xvfb, release build), growing with the posts
-  loaded; a CSS `font-size` provider instead of `gtk-xft-dpi` measured no better.
+  `settings.zoom`. Only the page stack zooms (CSS class `zoom::ZOOMED`, given a
+  `font-size` percentage by `apply`'s provider), not the header bar, sidebar, menus or
+  other windows; text and anything sized in `em` inside follows, icons don't. Avatars
+  do: size them with `zoom::set_pixel_size` (as `status::avatar` does), which rescales
+  them on every change; chrome avatars (header button, account menu) use plain pixel
+  sizes. `App::set_zoom` holds the scroll position like a resize (`anchor::capture`).
+  Images in posts must not grow: `fit::set_zoom` makes `FitLayout` lay them out in
+  `fit::limited_width` (tested) and centre them. A zoom costs about twice a window
+  resize (every label in the view is restyled, reshaped and rewrapped; ~350–400 ms for
+  20 Explore posts on Xvfb, release build), growing with the posts loaded.
 - `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
   request body is built by the pure, tested `model::filter_body`.
 - `src/ui/anchor.rs`: keeps the top post in place across resizes; `anchor_at` is pure and

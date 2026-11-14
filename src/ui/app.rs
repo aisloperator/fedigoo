@@ -260,6 +260,8 @@ impl App {
         side_col.append(&side_toggle);
 
         let stack = gtk::Stack::new();
+        // The pages zoom (Ctrl++ and so on); the header bar and sidebar don't.
+        stack.add_css_class(zoom::ZOOMED);
         stack.set_transition_type(gtk::StackTransitionType::Crossfade);
         stack.set_hexpand(true);
         stack.set_vexpand(true);
@@ -853,7 +855,7 @@ impl App {
         for (i, acc) in accounts.iter().enumerate() {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let img = gtk::Image::new();
-            zoom::set_pixel_size(&img, 28);
+            img.set_pixel_size(28);
             img.add_css_class("avatar");
             api::load_image(&img, &acc.avatar);
             row.append(&img);

@@ -42,9 +42,10 @@ No license is given.
 - Links to profiles, posts and hashtags on any server open inside the app
 - The sidebar can shrink to icons only (the button at its foot), with labels as tooltips
 - Zoom, as in a web browser (keys below, or Zoom in the main menu): 50% to 200% in fixed
-  steps through 100%, remembered between runs. Text, everything sized from it, and
-  avatars scale; icons keep their size, and images in posts never get larger than at
-  100%. The post at the top of the view stays in place
+  steps through 100%, remembered between runs. It zooms the view of posts and pages
+  (text, everything sized from it, and avatars), not the header bar, sidebar or menus;
+  icons keep their size, and images in posts never get larger than at 100%. The post at
+  the top of the view stays in place
 
 ## Keyboard shortcuts
 

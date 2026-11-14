@@ -2,12 +2,14 @@
 //! and Ctrl+0, and the Zoom submenu of the main menu.
 //!
 //! The zoom steps through fixed levels that include 100%, so zooming in and
-//! back out always returns to exactly 100%.  It scales text through GTK's
-//! font resolution (`gtk-xft-dpi`), so everything sized from text (labels,
-//! the post column's width, paddings in `em`) follows.  Avatars zoom too
-//! (`set_pixel_size`); icons keep their pixel sizes.  Images in posts never
-//! get larger than at 100% (`fit::set_zoom`), but they shrink with a
-//! narrower column.
+//! back out always returns to exactly 100%.  Only the view of pages (posts,
+//! profiles and so on: the widgets with the `ZOOMED` CSS class, the main
+//! window's page stack) zooms; the header bar, the sidebar, menus and other
+//! windows keep their size.  It sets a CSS `font-size` in percent on that
+//! class, so text and everything sized from it (the post column's width,
+//! paddings in `em`) follows.  Avatars zoom too (`set_pixel_size`); icons keep
+//! their pixel sizes.  Images in posts never get larger than at 100%
+//! (`fit::set_zoom`), but they shrink with a narrower column.
 
 use super::fit;
 use gtk::{glib, prelude::*};
@@ -37,10 +39,12 @@ pub fn nearest(level: u32) -> u32 {
         .unwrap_or(DEFAULT)
 }
 
-/// GTK's font resolution (1024 × dots per inch) for `level`, given the
-/// resolution at 100%.
-pub fn xft_dpi(base: i32, level: u32) -> i32 {
-    ((base as i64 * level as i64 + 50) / 100) as i32
+/// The CSS class of the widgets whose contents zoom.
+pub const ZOOMED: &str = "zoomed";
+
+/// The style sheet for `level`.
+pub fn css(level: u32) -> String {
+    format!(".{ZOOMED} {{ font-size: {level}%; }}")
 }
 
 /// `px` pixels at 100%, at `level`.
@@ -67,45 +71,29 @@ thread_local! {
     /// Images sized by `set_pixel_size`, with their size at 100%.
     static SIZED: RefCell<Vec<(glib::WeakRef<gtk::Image>, i32)>> = const { RefCell::new(Vec::new()) };
     static SIZED_CAP: Cell<usize> = const { Cell::new(256) };
-    /// The desktop's font resolution, which 100% means.
-    static BASE: Cell<i32> = const { Cell::new(0) };
-    /// The resolution this module last set, to tell the desktop's own
-    /// changes (a new base) from ours.
-    static APPLIED: Cell<i32> = const { Cell::new(0) };
+    static PROVIDER: RefCell<Option<gtk::CssProvider>> = const { RefCell::new(None) };
     static LEVEL: Cell<u32> = const { Cell::new(DEFAULT) };
 }
 
-/// GTK's default resolution, 96 dpi, when the desktop gives none.
-const DEFAULT_XFT_DPI: i32 = 96 * 1024;
-
-/// Applies `level` to the whole application.
+/// Applies `level` to the zoomed view.
 pub fn apply(level: u32) {
-    let Some(settings) = gtk::Settings::default() else {
+    let Some(display) = gtk::gdk::Display::default() else {
         return;
     };
-    if BASE.with(Cell::get) == 0 {
-        let base = match settings.gtk_xft_dpi() {
-            d if d > 0 => d,
-            _ => DEFAULT_XFT_DPI,
-        };
-        BASE.with(|b| b.set(base));
-        // If the desktop changes its resolution later, take that as the new
-        // 100% and keep the zoom on top of it.
-        settings.connect_gtk_xft_dpi_notify(|s| {
-            let now = s.gtk_xft_dpi();
-            if now > 0 && now != APPLIED.with(Cell::get) {
-                BASE.with(|b| b.set(now));
-                // Not from inside the notify.
-                glib::idle_add_local_once(|| apply(LEVEL.with(Cell::get)));
-            }
-        });
-    }
+    PROVIDER.with(|p| {
+        p.borrow_mut()
+            .get_or_insert_with(|| {
+                let provider = gtk::CssProvider::new();
+                gtk::style_context_add_provider_for_display(
+                    &display,
+                    &provider,
+                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+                provider
+            })
+            .load_from_string(&css(level));
+    });
     LEVEL.with(|l| l.set(level));
-    let dpi = xft_dpi(BASE.with(Cell::get), level);
-    APPLIED.with(|a| a.set(dpi));
-    if settings.gtk_xft_dpi() != dpi {
-        settings.set_gtk_xft_dpi(dpi);
-    }
     fit::set_zoom(level as f64 / 100.0);
     SIZED.with(|v| {
         v.borrow_mut().retain(|(w, px)| match w.upgrade() {
@@ -169,9 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn resolution() {
-        assert_eq!(xft_dpi(96 * 1024, 100), 96 * 1024);
-        assert_eq!(xft_dpi(96 * 1024, 150), 144 * 1024);
-        assert_eq!(xft_dpi(96 * 1024, 50), 48 * 1024);
+    fn style_sheet() {
+        assert_eq!(css(133), ".zoomed { font-size: 133%; }");
     }
 }
