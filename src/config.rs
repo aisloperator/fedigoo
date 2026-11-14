@@ -46,6 +46,8 @@ pub struct Settings {
     pub stream_updates: bool,
     /// Sidebar shows icons only (labels as tooltips).
     pub compact_sidebar: bool,
+    /// View zoom in percent, one of `ui::zoom::LEVELS`.
+    pub zoom: u32,
 }
 
 impl Default for Settings {
@@ -55,6 +57,7 @@ impl Default for Settings {
             expand_content_warnings: false,
             stream_updates: true,
             compact_sidebar: false,
+            zoom: 100,
         }
     }
 }
@@ -116,6 +119,10 @@ impl Config {
                 expand_content_warnings: flag("expand_content_warnings", d.expand_content_warnings),
                 stream_updates: flag("stream_updates", d.stream_updates),
                 compact_sidebar: flag("compact_sidebar", d.compact_sidebar),
+                zoom: match s["zoom"].i64() {
+                    z if z > 0 => crate::ui::zoom::nearest(z.min(10_000) as u32),
+                    _ => d.zoom,
+                },
             },
         }
     }
@@ -169,6 +176,7 @@ impl Config {
                     ("expand_content_warnings", s.expand_content_warnings.into()),
                     ("stream_updates", s.stream_updates.into()),
                     ("compact_sidebar", s.compact_sidebar.into()),
+                    ("zoom", i64::from(s.zoom).into()),
                 ]),
             ),
         ]);

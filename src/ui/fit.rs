@@ -31,6 +31,8 @@ const BLOCK: usize = 5;
 
 thread_local! {
     static MAX_HEIGHT: Cell<i32> = const { Cell::new(400) };
+    /// The view's zoom (1.0 = 100%), see `set_zoom`.
+    static ZOOM: Cell<f64> = const { Cell::new(1.0) };
     /// Most recent layout width, used as the first guess for new layouts.
     static LAST_WIDTH: Cell<i32> = const { Cell::new(600) };
     static LAYOUTS: RefCell<Vec<glib::WeakRef<FitLayout>>> = const { RefCell::new(Vec::new()) };
@@ -42,6 +44,33 @@ pub fn set_window_height(height: i32) {
     if MAX_HEIGHT.with(|m| m.replace(max)) == max {
         return;
     }
+    resize_all();
+}
+
+/// Called when the view's zoom changes (`ui::zoom`).  Zoomed in, the post
+/// column gets wider; images keep to the width they'd have at 100%
+/// (`limited_width`).
+pub fn set_zoom(zoom: f64) {
+    if ZOOM.with(|z| z.replace(zoom)) != zoom {
+        resize_all();
+    }
+}
+
+/// The width images are laid out in, out of `width`: all of it at 100% or
+/// less.  Zoomed in by `zoom`, the column is at most `zoom` times as wide as
+/// at 100%, so `width / zoom` is never more than the images had at 100%;
+/// and `natural`, the width that shows them at the full height limit (which
+/// zoom doesn't change), is what a column with room gave them.  So images
+/// never grow past their 100% size, and keep it when there is room.
+pub fn limited_width(width: i32, zoom: f64, natural: i32) -> i32 {
+    if zoom > 1.0 {
+        width.min(((width as f64 / zoom).round() as i32).max(natural))
+    } else {
+        width
+    }
+}
+
+fn resize_all() {
     LAYOUTS.with(|r| {
         r.borrow_mut().retain(|w| match w.upgrade() {
             Some(l) => {
@@ -289,6 +318,7 @@ mod imp {
                         0 => LAST_WIDTH.with(Cell::get),
                         w => w,
                     };
+                    let width = self.image_width(width);
                     let h = layout(&aspects, width, MAX_HEIGHT.with(Cell::get)).1;
                     let h = h.max(child_min);
                     (h, h, -1, -1)
@@ -308,18 +338,28 @@ mod imp {
                     }
                 });
             }
-            let (rects, _) = layout(&self.aspects(), width, MAX_HEIGHT.with(Cell::get));
+            let laid_out = self.image_width(width);
+            let (rects, _) = layout(&self.aspects(), laid_out, MAX_HEIGHT.with(Cell::get));
+            // Zoomed in, the images take less than the whole width: centre
+            // them in it, as a single image is centred at 100%.
+            let dx = (width - laid_out) / 2;
             for ((child, _), r) in self.children.borrow().iter().zip(rects) {
                 let min_w = child.measure(gtk::Orientation::Horizontal, -1).0;
                 let min_h = child.measure(gtk::Orientation::Vertical, -1).0;
                 let w = r.w.max(min_w);
                 let h = r.h.min(height - r.y).max(min_h);
-                child.size_allocate(&gtk::Allocation::new(r.x, r.y, w, h), -1);
+                child.size_allocate(&gtk::Allocation::new(r.x + dx, r.y, w, h), -1);
             }
         }
     }
 
     impl FitLayout {
+        /// `limited_width` for this layout.
+        fn image_width(&self, width: i32) -> i32 {
+            let natural = natural_width(&self.aspects(), MAX_HEIGHT.with(Cell::get) as f64);
+            limited_width(width, ZOOM.with(Cell::get), natural.round() as i32)
+        }
+
         fn aspects(&self) -> Vec<f64> {
             self.children.borrow().iter().map(|(_, a)| *a).collect()
         }
@@ -418,6 +458,18 @@ mod tests {
             }]
         );
         assert_eq!(h, 400);
+    }
+
+    #[test]
+    fn zoomed_in_images_keep_their_100_percent_width() {
+        // At 100% or less: the whole width.
+        assert_eq!(limited_width(600, 1.0, 300), 600);
+        assert_eq!(limited_width(400, 0.8, 300), 400);
+        // Zoomed in: the 100% share of the width, or the natural width…
+        assert_eq!(limited_width(900, 1.5, 300), 600);
+        assert_eq!(limited_width(900, 1.5, 700), 700);
+        // …but never more than there is room for.
+        assert_eq!(limited_width(550, 1.5, 700), 550);
     }
 
     #[test]

@@ -62,6 +62,14 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   To redraw a row after a change, replace its item (`ListStore::splice`): GTK doesn't
   rebind cells for an `items_changed` with the same object. The name column ellipsizes
   so the table's width doesn't change with the rows in view.
+- `src/ui/zoom.rs`: view zoom (Ctrl++/Ctrl+=, Ctrl+−, Ctrl+0; the `win.zoom-*`
+  actions, also behind the main menu's Zoom submenu, `App::add_zoom_submenu`, a `Stack`
+  page in the same popover whose items keep it open). Levels are the fixed
+  `zoom::LEVELS` through 100%, stepped by the pure, tested `zoom_in`/`zoom_out`, kept in
+  `settings.zoom`. `apply` scales GTK's `gtk-xft-dpi` from the desktop's value (taken
+  again if the desktop changes it), so text and anything sized in `em` follows; pixel
+  sizes (icons, avatars) don't. Images in posts must not grow: `fit::set_zoom` makes
+  `FitLayout` lay them out in `fit::limited_width` (tested) and centre them.
 - `src/ui/filters.rs`: the Filters page and filter editor (`/api/v2/filters`); the
   request body is built by the pure, tested `model::filter_body`.
 - `src/ui/anchor.rs`: keeps the top post in place across resizes; `anchor_at` is pure and

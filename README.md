@@ -41,6 +41,10 @@ No license is given.
   collapsed behind a warning or hidden, as each filter says
 - Links to profiles, posts and hashtags on any server open inside the app
 - The sidebar can shrink to icons only (the button at its foot), with labels as tooltips
+- Zoom, as in a web browser (keys below, or Zoom in the main menu): 50% to 200% in fixed
+  steps through 100%, remembered between runs. Text and everything sized from it
+  scale; icons and avatars keep their size, and images in posts never get larger than
+  at 100%
 
 ## Keyboard shortcuts
 
@@ -52,6 +56,9 @@ No license is given.
 | Ctrl+F            | Search      |
 | Ctrl+Enter        | Send post   |
 | Ctrl+Q            | Quit        |
+| Ctrl++ / Ctrl+=   | Zoom in     |
+| Ctrl+−            | Zoom out    |
+| Ctrl+0            | Actual size (100%) |
 | PgDn / Space      | Page down   |
 | PgUp / Shift+Space | Page up |
 

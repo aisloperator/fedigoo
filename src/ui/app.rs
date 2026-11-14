@@ -1,6 +1,6 @@
 //! The main window, navigation, account handling and streaming.
 
-use super::{anchor, compose, fit, frame, login, pages, paging, prefs, timeline::Timeline};
+use super::{anchor, compose, fit, frame, login, pages, paging, prefs, timeline::Timeline, zoom};
 use crate::api::{self, Api};
 use crate::config::Config;
 use crate::json::Value;
@@ -128,6 +128,8 @@ pub struct App {
     /// Size at which `posts` is next pruned of dead widgets.
     posts_cap: Cell<usize>,
     stream: RefCell<Option<soup::WebsocketConnection>>,
+    /// Labels showing the zoom level (in the main menu), updated on change.
+    zoom_labels: RefCell<Vec<glib::WeakRef<gtk::Label>>>,
     /// Bumped on every account switch so stale async work can bail out.
     generation: Cell<u32>,
 }
@@ -328,10 +330,12 @@ impl App {
             posts: RefCell::new(Vec::new()),
             posts_cap: Cell::new(256),
             stream: RefCell::new(None),
+            zoom_labels: RefCell::new(Vec::new()),
             generation: Cell::new(0),
         });
         app.connect_signals(gtk_app);
         app.apply_sidebar_mode();
+        zoom::apply(app.config.borrow().settings.zoom);
         app.rebuild_account_menu();
         app.start();
         app
@@ -445,6 +449,36 @@ impl App {
             self.window.add_action(&act);
             gtk_app.set_accels_for_action(&format!("win.{name}"), accels);
         }
+        // Zoom, as in web browsers.  Ctrl+= is Ctrl++ without Shift on
+        // US-style keyboards.
+        let zooms: [(&str, &[&str], fn(u32) -> Option<u32>); 3] = [
+            (
+                "zoom-in",
+                &["<Control>plus", "<Control>equal", "<Control>KP_Add"],
+                zoom::zoom_in,
+            ),
+            (
+                "zoom-out",
+                &["<Control>minus", "<Control>KP_Subtract"],
+                zoom::zoom_out,
+            ),
+            ("zoom-reset", &["<Control>0", "<Control>KP_0"], |l| {
+                (l != zoom::DEFAULT).then_some(zoom::DEFAULT)
+            }),
+        ];
+        for (name, accels, step) in zooms {
+            let act = gio::SimpleAction::new(name, None);
+            let a = self.clone();
+            act.connect_activate(move |_, _| {
+                let level = a.config.borrow().settings.zoom;
+                if let Some(level) = step(level) {
+                    a.set_zoom(level);
+                }
+            });
+            self.window.add_action(&act);
+            gtk_app.set_accels_for_action(&format!("win.{name}"), accels);
+        }
+        self.update_zoom_ui();
         let a = self.clone();
         self.window.connect_close_request(move |_| {
             if let Some(ws) = a.stream.borrow_mut().take() {
@@ -888,12 +922,13 @@ impl App {
             self.menu_item(&pop, &b, "Edit profile…", Box::new(pages::edit_profile));
         }
         self.menu_item(&pop, &b, "Preferences…", Box::new(prefs::open));
+        self.add_zoom_submenu(&pop, &b);
         self.menu_item(
             &pop,
             &b,
             "Keyboard shortcuts",
             Box::new(|a| {
-                a.toast("Ctrl+N new post · F5 refresh · Alt+Left/Esc back · Ctrl+F search · Ctrl+Enter send · Ctrl+Q quit")
+                a.toast("Ctrl+N new post · F5 refresh · Alt+Left/Esc back · Ctrl+F search · Ctrl+Enter send · Ctrl++/Ctrl+−/Ctrl+0 zoom · Ctrl+Q quit")
             }),
         );
         self.menu_item(
@@ -925,6 +960,138 @@ impl App {
             }),
         );
         self.menu_btn.set_popover(Some(&pop));
+    }
+
+    /// Zooms the view to `level` (one of `zoom::LEVELS`) and remembers it.
+    pub fn set_zoom(&self, level: u32) {
+        {
+            let mut c = self.config.borrow_mut();
+            c.settings.zoom = level;
+            c.save();
+        }
+        zoom::apply(level);
+        self.update_zoom_ui();
+        self.toast(&format!("Zoom {level}%"));
+    }
+
+    /// Enables the zoom actions that can go somewhere, and updates the
+    /// level shown in the menu.
+    fn update_zoom_ui(&self) {
+        let level = self.config.borrow().settings.zoom;
+        for (name, enabled) in [
+            ("zoom-in", zoom::zoom_in(level).is_some()),
+            ("zoom-out", zoom::zoom_out(level).is_some()),
+            ("zoom-reset", level != zoom::DEFAULT),
+        ] {
+            if let Some(act) = self
+                .window
+                .lookup_action(name)
+                .and_downcast::<gio::SimpleAction>()
+            {
+                act.set_enabled(enabled);
+            }
+        }
+        self.zoom_labels.borrow_mut().retain(|w| match w.upgrade() {
+            Some(l) => {
+                l.set_text(&format!("{level}%"));
+                true
+            }
+            None => false,
+        });
+    }
+
+    /// Adds "Zoom ›" to the main menu `b`, opening a submenu (Zoom in, Zoom
+    /// out, Actual size) that slides in within `pop`.  The submenu's items
+    /// keep the menu open, so the effect can be seen and repeated.
+    fn add_zoom_submenu(&self, pop: &gtk::Popover, b: &gtk::Box) {
+        let level_label = || {
+            let l = gtk::Label::new(Some(&format!("{}%", self.config.borrow().settings.zoom)));
+            l.add_css_class("dim-label");
+            self.zoom_labels.borrow_mut().push(l.downgrade());
+            l
+        };
+        let stack = gtk::Stack::new();
+        stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
+        stack.set_vhomogeneous(false);
+        stack.set_hhomogeneous(false);
+        stack.set_interpolate_size(true);
+
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let l = gtk::Label::new(Some("Zoom"));
+        l.set_xalign(0.0);
+        l.set_hexpand(true);
+        row.append(&l);
+        row.append(&level_label());
+        row.append(&gtk::Image::from_icon_name("go-next-symbolic"));
+        let open = gtk::Button::builder().child(&row).build();
+        open.add_css_class("flat");
+        // The padding of the plain items (labels only), to line up with them.
+        open.add_css_class("text-button");
+        open.set_tooltip_text(Some("Zoom in, zoom out or reset"));
+        open.connect_clicked(glib::clone!(
+            #[weak]
+            stack,
+            move |_| stack.set_visible_child_name("zoom")
+        ));
+        b.append(&open);
+
+        let sub = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        sub.set_margin_top(6);
+        sub.set_margin_bottom(6);
+        let head = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        head.append(&gtk::Image::from_icon_name("go-previous-symbolic"));
+        let l = gtk::Label::new(None);
+        l.set_markup("<b>Zoom</b>");
+        l.set_xalign(0.0);
+        l.set_hexpand(true);
+        head.append(&l);
+        head.append(&level_label());
+        let back = gtk::Button::builder().child(&head).build();
+        back.add_css_class("flat");
+        // The padding of the plain items (labels only), to line up with them.
+        back.add_css_class("text-button");
+        back.set_tooltip_text(Some("Back to the menu"));
+        back.connect_clicked(glib::clone!(
+            #[weak]
+            stack,
+            move |_| stack.set_visible_child_name("main")
+        ));
+        sub.append(&back);
+        sub.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+        for (label, keys, action) in [
+            ("Zoom in", "Ctrl++", "win.zoom-in"),
+            ("Zoom out", "Ctrl+−", "win.zoom-out"),
+            ("Actual size (100%)", "Ctrl+0", "win.zoom-reset"),
+        ] {
+            let row = gtk::Box::new(gtk::Orientation::Horizontal, 16);
+            let l = gtk::Label::new(Some(label));
+            l.set_xalign(0.0);
+            l.set_hexpand(true);
+            row.append(&l);
+            let k = gtk::Label::new(Some(keys));
+            k.add_css_class("dim-label");
+            row.append(&k);
+            let btn = gtk::Button::builder().child(&row).build();
+            btn.add_css_class("flat");
+            btn.set_action_name(Some(action));
+            btn.add_css_class("text-button");
+            sub.append(&btn);
+        }
+
+        pop.set_child(None::<&gtk::Widget>);
+        stack.add_named(b, Some("main"));
+        stack.add_named(&sub, Some("zoom"));
+        pop.set_child(Some(&stack));
+        // Open on the main menu again next time.
+        pop.connect_closed(glib::clone!(
+            #[weak]
+            stack,
+            move |_| {
+                stack.set_transition_type(gtk::StackTransitionType::None);
+                stack.set_visible_child_name("main");
+                stack.set_transition_type(gtk::StackTransitionType::SlideLeftRight);
+            }
+        ));
     }
 
     /// Adds a plain menu entry to `b`, in `pop`: it closes the menu, then runs `f`.
