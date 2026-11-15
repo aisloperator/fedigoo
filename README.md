@@ -76,7 +76,7 @@ In the image viewer:
 | Right / Space, or click the image      | Next image      |
 | Left / Backspace, or click its left 20% | Previous image |
 | Swipe or drag left / right             | Next / previous |
-| Esc / Ctrl+W                           | Close           |
+| Esc / Ctrl+W, or click the last image  | Close           |
 
 ## Building
 

@@ -154,6 +154,33 @@ fn press_action(dx: f64, dy: f64, threshold: f64) -> PressAction {
     }
 }
 
+/// What a tap on the image does.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TapResult {
+    /// Flip by this many images.
+    Flip(i32),
+    /// Close the viewer, back to the post.
+    Close,
+    Nothing,
+}
+
+/// The result of a tap on image `idx` of `n`, in its back zone (`back`) or
+/// elsewhere. Tapping forward through the images ends by closing the
+/// viewer, so a few quick taps view a post's images and return to it. A
+/// tap anywhere on a lone image closes it; on the first of several, the
+/// back zone does nothing.
+fn tap_result(back: bool, idx: usize, n: usize) -> TapResult {
+    if back && idx > 0 {
+        TapResult::Flip(-1)
+    } else if back && n > 1 && idx + 1 < n {
+        TapResult::Nothing
+    } else if idx + 1 < n {
+        TapResult::Flip(1)
+    } else {
+        TapResult::Close
+    }
+}
+
 /// The full-size image viewer window.  Two pictures take turns in a stack,
 /// so flipping slides the new image in like a phone's photo gallery.
 struct Viewer {
@@ -327,7 +354,8 @@ impl Viewer {
 
         // One gesture handles both taps and swipes, so a single press can
         // only ever flip once: on release, a pointer that barely moved is a
-        // tap (the left part of the image goes back, anywhere else forward)
+        // tap (the left part of the image goes back, anywhere else forward,
+        // and forward from the last image closes the window: `tap_result`)
         // and a long sideways movement is a swipe.
         let drag = gtk::GestureDrag::new();
         let w = with.clone();
@@ -345,13 +373,25 @@ impl Viewer {
             // picture under the pointer mid-event upsets its bookkeeping.
             glib::idle_add_local_once(move || {
                 w(&|v| {
-                    v.stage.grab_focus();
-                    v.go(match action {
-                        PressAction::Tap if v.in_back_zone(x) => -1,
-                        PressAction::Tap => 1,
+                    let step = match action {
+                        PressAction::Tap => {
+                            let back = v.in_back_zone(x);
+                            match tap_result(back, v.idx.get(), v.images.len()) {
+                                TapResult::Flip(step) => step,
+                                TapResult::Close => {
+                                    if let Some(win) = v.win.upgrade() {
+                                        win.close();
+                                    }
+                                    return;
+                                }
+                                TapResult::Nothing => return,
+                            }
+                        }
                         PressAction::Swipe(step) => step,
-                        PressAction::None => 0,
-                    });
+                        PressAction::None => return,
+                    };
+                    v.stage.grab_focus();
+                    v.go(step);
                 })
             });
         });
@@ -458,5 +498,21 @@ mod tests {
         // Too short, or mostly vertical: nothing.
         assert_eq!(press_action(30.0, 0.0, 8.0), None);
         assert_eq!(press_action(-80.0, 200.0, 8.0), None);
+    }
+
+    #[test]
+    fn tap_results() {
+        use TapResult::*;
+        // Forward through the images, then closed.
+        assert_eq!(tap_result(false, 0, 3), Flip(1));
+        assert_eq!(tap_result(false, 1, 3), Flip(1));
+        assert_eq!(tap_result(false, 2, 3), Close);
+        // The back zone goes back, but not from the first image.
+        assert_eq!(tap_result(true, 2, 3), Flip(-1));
+        assert_eq!(tap_result(true, 1, 3), Flip(-1));
+        assert_eq!(tap_result(true, 0, 3), Nothing);
+        // A lone image closes wherever it's tapped.
+        assert_eq!(tap_result(false, 0, 1), Close);
+        assert_eq!(tap_result(true, 0, 1), Close);
     }
 }
