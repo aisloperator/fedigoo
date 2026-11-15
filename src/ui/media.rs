@@ -2,6 +2,7 @@
 
 use super::app::App;
 use super::fit::FitLayout;
+use super::viewer_box::ViewerBox;
 use crate::api;
 use crate::model::Media;
 use gtk::{glib, prelude::*};
@@ -166,6 +167,7 @@ struct Viewer {
     /// Bumped on every flip, so late downloads for an earlier image are dropped.
     generation: Rc<Cell<u32>>,
     alt: gtk::Label,
+    alt_scroll: gtk::ScrolledWindow,
     counter: gtk::Label,
     prev: gtk::Button,
     next: gtk::Button,
@@ -173,11 +175,19 @@ struct Viewer {
 
 impl Viewer {
     fn open(app: &Rc<App>, images: Vec<Media>, start: usize) {
+        // Open no larger than the screen the main window is on (the user or
+        // window manager may still make it larger).
+        let (w, h) = gtk::prelude::NativeExt::surface(&app.window)
+            .and_then(|s| s.display().monitor_at_surface(&s))
+            .map(|m| m.geometry())
+            .map_or((1000, 760), |g| {
+                (1000.min(g.width() * 9 / 10), 760.min(g.height() * 9 / 10))
+            });
         let win = gtk::Window::builder()
             .title("Image")
             .transient_for(&app.window)
-            .default_width(1000)
-            .default_height(760)
+            .default_width(w)
+            .default_height(h)
             .build();
         let pic = || {
             let p = gtk::Picture::new();
@@ -207,6 +217,15 @@ impl Viewer {
         alt.set_margin_bottom(6);
         alt.set_margin_start(12);
         alt.set_margin_end(12);
+        // The alt text scrolls once it would take more than half the
+        // window (`ViewerBox`), with a scrollbar that stays visible.
+        let alt_scroll = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .overlay_scrolling(false)
+            .propagate_natural_height(true)
+            .child(&alt)
+            .build();
         let prev = gtk::Button::from_icon_name("go-previous-symbolic");
         prev.set_tooltip_text(Some("Previous image (Left, Backspace)"));
         let next = gtk::Button::from_icon_name("go-next-symbolic");
@@ -228,11 +247,7 @@ impl Viewer {
         sp.set_hexpand(true);
         bar.append(&sp);
         bar.append(&browser);
-        let vb = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        vb.append(&stage);
-        vb.append(&alt);
-        vb.append(&bar);
-        win.set_child(Some(&vb));
+        win.set_child(Some(&ViewerBox::new(&stage, &alt_scroll, &bar)));
 
         let v = Rc::new(Viewer {
             win: win.downgrade(),
@@ -243,6 +258,7 @@ impl Viewer {
             front: Cell::new(0),
             generation: Rc::default(),
             alt: alt.clone(),
+            alt_scroll,
             counter,
             prev: prev.clone(),
             next: next.clone(),
@@ -399,7 +415,8 @@ impl Viewer {
         self.stage.set_visible_child(&pic);
         self.front.set(target);
         self.alt.set_text(m.description.as_deref().unwrap_or(""));
-        self.alt.set_visible(m.description.is_some());
+        self.alt_scroll.set_visible(m.description.is_some());
+        self.alt_scroll.vadjustment().set_value(0.0);
         let n = self.images.len();
         self.counter.set_text(&format!("{} / {}", i + 1, n));
         self.prev.set_sensitive(i > 0);

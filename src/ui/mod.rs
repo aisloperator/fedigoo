@@ -14,4 +14,5 @@ mod prefs;
 mod status;
 pub mod theme;
 mod timeline;
+mod viewer_box;
 pub mod zoom;
