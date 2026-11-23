@@ -663,11 +663,7 @@ impl App {
     /// or in another client: the server's `notifications` marker says where
     /// reading stopped.
     async fn load_unread(&self, api: &Api, generation: u32) {
-        let count = match api.get("/api/v1/notifications/unread_count", &[]).await {
-            Ok(v) if !v["count"].is_null() => Some(v["count"].i64().max(0) as u32),
-            // Before Mastodon 4.3 (and elsewhere): count from the marker.
-            _ => self.count_unread_from_marker(api).await,
-        };
+        let count = self.count_unread(api, generation).await;
         if self.generation() != generation || self.on_notifications_page() {
             return;
         }
@@ -676,12 +672,38 @@ impl App {
         }
     }
 
-    async fn count_unread_from_marker(&self, api: &Api) -> Option<u32> {
+    async fn count_unread(&self, api: &Api, generation: u32) -> Option<u32> {
         let v = api
             .get("/api/v1/markers", &[("timeline[]", "notifications")])
             .await
             .ok()?;
-        let last = v["notifications"]["last_read_id"].nonempty_str()?;
+        if self.generation() != generation {
+            return None;
+        }
+        let Some(last) = v["notifications"]["last_read_id"].nonempty_str() else {
+            // No client has recorded reading any, so the server would count
+            // every notification ever (#39). Start counting from now on.
+            let v = api
+                .get("/api/v1/notifications", &[("limit", "1")])
+                .await
+                .ok()?;
+            if self.generation() == generation
+                && let Some(newest) = v.arr().first()
+            {
+                self.notifications_seen(newest["id"].str());
+            }
+            return Some(0);
+        };
+        // So that a late page load can't move the marker back.
+        if model::id_newer(last, &self.read_marker.borrow()) {
+            *self.read_marker.borrow_mut() = last.to_string();
+        }
+        if let Ok(v) = api.get("/api/v1/notifications/unread_count", &[]).await
+            && !v["count"].is_null()
+        {
+            return Some(v["count"].i64().max(0) as u32);
+        }
+        // Before Mastodon 4.3 (and elsewhere): count them from the marker.
         let v = api
             .get(
                 "/api/v1/notifications",
