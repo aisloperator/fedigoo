@@ -157,6 +157,12 @@ FediGoo: a Mastodon desktop client in Rust with GTK 4 (X11, optionally Wayland).
   `update_header`): only while a root page is showing, so change pages via
   `show_root`/`push`/`pop`. The ListBox's own selection is off (in GTK it follows
   keyboard focus); the highlight is the `SELECTED` state flag set on the row.
+- The Notifications unread count starts from the server (`App::load_unread`:
+  `/api/v1/notifications/unread_count`, or the `notifications` marker plus a
+  `since_id` count on older servers) and then counts streamed ones. Showing the newest
+  notification on the (all-types) Notifications page moves that marker
+  (`App::notifications_seen`, via `Timeline::seen`), only forward (`model::id_newer`);
+  Mentions doesn't, since it skips other types.
 - Filters are applied by the client, as the API says: `Status::filter_match()` gives
   `FilterMatch::Hide` (any "hide" result, in the post or the boosted post) or `Warn`
   (also for "blur" and unknown actions). `status::build`/`notification` return a hidden,

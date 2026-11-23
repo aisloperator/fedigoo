@@ -443,6 +443,14 @@ impl Tag {
     }
 }
 
+/// Whether item id `a` is newer than `b`.  Mastodon ids are decimal numbers
+/// in strings, too long for an integer type everywhere, and other servers
+/// use fixed-length sortable ids (ULIDs, flake ids): ordering by length,
+/// then by text, is right for both.  An empty id is older than any other.
+pub fn id_newer(a: &str, b: &str) -> bool {
+    (a.len(), a) > (b.len(), b)
+}
+
 /// Accounts and domains the user has blocked or muted while the app is
 /// running, so views can drop their posts at once.  (The server filters what
 /// it sends after that, but not what's already loaded.)
@@ -624,6 +632,20 @@ pub fn filter_body(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn newer_ids() {
+        assert!(id_newer("115000000000000002", "115000000000000001"));
+        assert!(id_newer("100", "99"));
+        assert!(!id_newer("99", "100"));
+        assert!(!id_newer("5", "5"));
+        assert!(id_newer("1", ""));
+        assert!(!id_newer("", "1"));
+        assert!(id_newer(
+            "01HZB0000000000000000000B",
+            "01HZB0000000000000000000A"
+        ));
+    }
 
     fn filtered(actions: &[(&str, &str)]) -> String {
         let results: Vec<String> = actions

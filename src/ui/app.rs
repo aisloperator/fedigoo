@@ -111,6 +111,9 @@ pub struct App {
     /// Switches the sidebar between icons with labels and icons only.
     side_toggle: gtk::Button,
     unread: Cell<u32>,
+    /// The newest notification id this session has told the server is read
+    /// (the `notifications` marker), so it is only ever moved forward.
+    read_marker: RefCell<String>,
     /// The current account's avatar: switch, add and log out of accounts.
     account_btn: gtk::MenuButton,
     account_img: gtk::Image,
@@ -321,6 +324,7 @@ impl App {
             side_scroll,
             side_toggle,
             unread: Cell::new(0),
+            read_marker: RefCell::default(),
             account_btn,
             account_img,
             menu_btn,
@@ -612,6 +616,7 @@ impl App {
         *self.me.borrow_mut() = None;
         *self.hidden.borrow_mut() = model::Hidden::default();
         self.set_unread(0);
+        self.read_marker.borrow_mut().clear();
         self.sidebar.set_sensitive(true);
         // Until this server says otherwise.
         self.set_live_feed_enabled(Root::Local, true);
@@ -645,10 +650,68 @@ impl App {
             *a.me.borrow_mut() = Some(me);
             a.rebuild_account_menu();
             let streaming = a.load_instance_info(&api).await;
+            // Before the stream starts counting, so none is counted twice.
+            a.load_unread(&api, generation).await;
             if a.config.borrow().settings.stream_updates {
                 a.connect_stream(streaming, generation);
             }
             Ok(())
+        });
+    }
+
+    /// Shows how many notifications arrived since they were last read, here
+    /// or in another client: the server's `notifications` marker says where
+    /// reading stopped.
+    async fn load_unread(&self, api: &Api, generation: u32) {
+        let count = match api.get("/api/v1/notifications/unread_count", &[]).await {
+            Ok(v) if !v["count"].is_null() => Some(v["count"].i64().max(0) as u32),
+            // Before Mastodon 4.3 (and elsewhere): count from the marker.
+            _ => self.count_unread_from_marker(api).await,
+        };
+        if self.generation() != generation || self.on_notifications_page() {
+            return;
+        }
+        if let Some(n) = count {
+            self.set_unread(n);
+        }
+    }
+
+    async fn count_unread_from_marker(&self, api: &Api) -> Option<u32> {
+        let v = api
+            .get("/api/v1/markers", &[("timeline[]", "notifications")])
+            .await
+            .ok()?;
+        let last = v["notifications"]["last_read_id"].nonempty_str()?;
+        let v = api
+            .get(
+                "/api/v1/notifications",
+                &[("since_id", last), ("limit", "40")],
+            )
+            .await
+            .ok()?;
+        Some(v.arr().len() as u32)
+    }
+
+    /// Whether the Notifications page (all of them, not Mentions) is showing.
+    pub fn on_notifications_page(&self) -> bool {
+        self.title.text() == "Notifications" && self.nav.borrow().len() == 1
+    }
+
+    /// Records that the user has seen notifications up to `id` (the newest
+    /// one shown on the Notifications page), moving the server's marker so
+    /// the next start, or another client, doesn't count them as new.
+    pub fn notifications_seen(&self, id: &str) {
+        if !model::id_newer(id, &self.read_marker.borrow()) {
+            return;
+        }
+        *self.read_marker.borrow_mut() = id.to_string();
+        let api = self.api();
+        let id = id.to_string();
+        // Failing only means they show as new next time: not worth a toast.
+        glib::spawn_future_local(async move {
+            let _ = api
+                .post_form("/api/v1/markers", &[("notifications[last_read_id]", &id)])
+                .await;
         });
     }
 
@@ -1471,12 +1534,8 @@ impl App {
                 for tl in self.live_timelines() {
                     tl.on_stream(event, &item);
                 }
-                if event == "notification" {
-                    let on_page =
-                        self.title.text() == "Notifications" && self.nav.borrow().len() == 1;
-                    if !on_page {
-                        self.set_unread(self.unread.get() + 1);
-                    }
+                if event == "notification" && !self.on_notifications_page() {
+                    self.set_unread(self.unread.get() + 1);
                 }
             }
             "delete" => {

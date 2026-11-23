@@ -283,6 +283,11 @@ impl Timeline {
                     for item in items {
                         t.append_item(item, false);
                     }
+                    if path == t.source.borrow().request().0
+                        && let Some(first) = items.first()
+                    {
+                        t.seen(first);
+                    }
                     let offset = t.offset.get() + items.len();
                     t.offset.set(offset);
                     let next = resp.next.or_else(|| {
@@ -438,6 +443,7 @@ impl Timeline {
         if at_top && self.pending.borrow().is_empty() {
             self.append_item(item, true);
             self.end_label.set_visible(false);
+            self.seen(item);
         } else {
             self.pending.borrow_mut().push(item.clone());
             let n = self.pending.borrow().len();
@@ -462,8 +468,22 @@ impl Timeline {
         for item in &items {
             self.append_item(item, true);
         }
+        if let Some(newest) = items.last() {
+            self.seen(newest);
+        }
         self.new_btn.set_visible(false);
         self.scroller.vadjustment().set_value(0.0);
+    }
+
+    /// Notes that `item`, now the top row, has been seen, if this is the
+    /// Notifications page (all types) and it's showing: that moves the
+    /// server's read marker, which the unread count at startup comes from.
+    fn seen(&self, item: &Value) {
+        if matches!(&*self.source.borrow(), Source::Notifications(q) if q.is_empty())
+            && self.app.on_notifications_page()
+        {
+            self.app.notifications_seen(item["id"].str());
+        }
     }
 
     pub fn remove_status(&self, id: &str) {
